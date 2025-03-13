@@ -1,0 +1,183 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% block title %}Upload Items{% endblock %}
+{% block description %}Upload shopping list{% endblock %}
+
+{% block content %}
+<style>
+    :root {
+        --color1: rgb(76, 76, 76);
+    }
+
+    .drag-area {
+        border: 2px dashed rgba(76, 76, 76, 0.3);
+        background-color: #fff;
+        max-width: 400px;
+        margin: 0 auto;
+        padding: 20px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+    }
+
+    .drag-area.active {
+        border: 2px solid #fff;
+    }
+
+    .drag-area .icon {
+        font-size: 60px;
+        color: var(--color1);
+    }
+
+    .drag-area header {
+        font-size: 20px;
+        font-weight: 500;
+        color: var(--color1);
+        margin: 10px 0 15px 0;
+    }
+
+    .drag-area span {
+        font-size: 16px;
+        font-weight: 500;
+        color: var(--color1);
+        margin-bottom: 15px;
+    }
+
+    .drag-area button {
+        padding: 8px 20px;
+        font-size: 16px;
+        font-weight: 500;
+        border: none;
+        outline: none;
+        background: #fff;
+        color: #5256ad;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    .drag-area img {
+        max-width: 100%;
+        border-radius: 5px;
+    }
+</style>
+
+<!-- top bar -->
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Upload shopping list</h1>
+</div>
+
+<!-- messages -->
+{% include 'partials/messages.html' %}
+
+<div class="container">
+    <div class="drag-area">
+        <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
+        <header>Drag & Drop to Upload File</header>
+        <span>OR</span>
+        <button>Browse File</button>
+        <input type="file" hidden id="fileInput">
+    </div>
+</div>
+
+
+<form method="post" class="d-flex justify-content-center mt-5" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="file" name="file" id="fileUpload" style="display: none;">
+    <button class="btn btn-success" type="submit" id="uploadButton" style="display: none;">Upload File</button>
+</form>
+
+
+<!-- table useless -->
+<div class="card shadow-sm border-0 p-3 pb-0 mt-1" style="display: none;">
+    <div class="table-responsive app-table">
+        <table class="table table-hover table-sm">
+            <thead>
+                <tr>
+                    <th scope="col">Rfid no.</th>
+                    <th scope="col">Reg.no</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Email</th>
+                    <th scope="col">Phone</th>
+                    <th scope="col">Department</th>
+                    <th scope="col">Course</th>
+                    <th scope="col">Year</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Data will be appended here -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+
+<!-- js -->
+<script>
+    const dropArea = document.querySelector(".drag-area"),
+        dragText = dropArea.querySelector("header"),
+        button = dropArea.querySelector("button"),
+        input = dropArea.querySelector("input#fileInput"),
+        uploadButton = document.getElementById("uploadButton"),
+        fileUpload = document.getElementById("fileUpload");
+    let file;
+
+    button.onclick = () => {
+        input.click();
+    }
+
+    input.addEventListener("change", function () {
+        file = this.files[0];
+        dropArea.classList.add("active");
+        showFile();
+        fileUpload.files = this.files;
+        uploadButton.style.display = "block";
+    });
+
+    dropArea.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        dropArea.classList.add("active");
+        dragText.textContent = "Release to Upload File";
+    });
+
+    dropArea.addEventListener("dragleave", () => {
+        dropArea.classList.remove("active");
+        dragText.textContent = "Drag & Drop to Upload File";
+    });
+
+    dropArea.addEventListener("drop", (event) => {
+        event.preventDefault();
+        file = event.dataTransfer.files[0];
+        showFile();
+        fileUpload.files = event.dataTransfer.files;
+        uploadButton.style.display = "block";
+    });
+
+    function showFile() {
+        let fileType = file.type;
+        let validExtensions = [
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "text/csv",
+            "application/vnd.ms-excel.sheet.macroEnabled.12",
+            "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+            "text/plain", 
+            "application/msword", 
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ];
+        if (validExtensions.includes(fileType)) {
+            let iconURL = "{% static '/img/xlsx_icon.png' %}";
+            let fileName = file.name;
+            let fileTag = `<img src="${iconURL}" alt="icon" style="width:50px;height:50px;margin-bottom:10px;"><p>${fileName}</p>`;
+            dropArea.innerHTML = fileTag;
+        } else {
+            alert("Please upload a valid Excel file!");
+            dropArea.classList.remove("active");
+            dragText.textContent = "Drag & Drop to Upload File";
+            uploadButton.style.display = "none";
+        }
+    }
+
+</script>
+{% endblock content %}

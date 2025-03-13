@@ -1,0 +1,151 @@
+{% extends 'partials/base.html'%}
+{% load static %}
+{% block title %}Floors{% endblock %}
+{% block description %}floors list{% endblock %}
+
+{% block content %}
+<style>
+    .card {
+        transition: ease-in-out 0.2s;
+        /* border: 3px solid rgba(30, 72, 158, .5); */
+    }
+    .card:hover {
+        box-shadow: 0px 0px 10px 2px rgba(30, 70, 158, 0.3);
+    }
+</style>
+<!-- topbar -->
+<div class="d-flex justify-content-between flex-wrap flex-md nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Floors List</h1>
+    <!-- <div class="btn-toolbar mb-2 mb-md 0">
+        <div class="btn-group me-2">
+            <a href="{% url 'floors' %}" class="btn btn-sm btn-outline-success">+ New Lab</a>
+        </div>
+    </div> -->
+</div>
+
+<!-- messages -->
+{% include 'partials/messages.html'%}
+
+<style>
+    .lab-card {
+        margin-bottom: 25px;
+        width: 25%;
+        /* 20% - 5cards */
+    }
+
+    .card-body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 110px;
+    }
+
+    .btn-group {
+        width: 100%;
+    }
+
+    .btn-group .btn {
+        flex: 1;
+    }
+
+    .plus-card .card-body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .plus-card a {
+        display: block;
+        width: 100%;
+        height: 100%;
+        text-decoration: none;
+        color: inherit;
+    }
+</style>
+
+<!-- cards -->
+<div class="container mt-5">
+    <div class="row ">
+        {% if floors.count %}
+        {% for floor in floors %}
+        <div class="lab-card">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title" style="text-transform: capitalize;">{{floor.name}}</h4>
+                    <div class="btn-group" role="group" aria-label="Basic example">
+                        <a href="{% url 'view-floor' floor.name %}" type="button" class="btn btn-primary btn-small">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a href="" type="button" class="btn btn-warning btn-small">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <a href="" type="button" class="btn btn-danger btn-small">
+                            <i class="bi bi-trash"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+
+        <!-- Add Card -->
+        <div class="lab-card plus-card">
+            <a href="{% url 'build' %}">
+                <div class="card">
+                    <div class="card-body">
+                        <!-- <i class="fa fa-plus" style="font-size: 48px; font-weight: 100;"></i> -->
+                        <p class="" style="font-size: 90px; font-weight: 100;">+</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+    </div>
+</div>
+
+
+<!-- Table data view -->
+<!-- <div class="card shadow-sm border-0 p-3 pb-0 mt-1">
+    <div class="table-responsive">
+        {% if users.count %}
+        <table class="table table-hover table-sm">
+            <thead>
+                <tr>
+                    <th scope="col">Username</th>
+                    <th scope="col" class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr class="align-middle">
+                    <td>
+                        {{user.username}}
+                    </td>
+                    <td class="text-end">
+                        <div class="d-flex flex-row justify-content-end gap-2">
+                            <a href="{% url 'view-user' user.pk %}" type="button" class="btn btn-primary btn-small">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="{% url 'edit-user' user.pk %}" type="button" class="btn btn-warning btn-small">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <a href="{% url 'delete-user' user.pk %}" type="button" class="btn btn-danger btn-small">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+
+            </tbody>
+            {% endfor %}
+        </table>
+        {% endif %}
+    </div>
+</div> -->
+
+
+
+{% endblock content %}

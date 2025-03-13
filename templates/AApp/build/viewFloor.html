@@ -1,0 +1,635 @@
+{% extends 'partials/base.html' %} {% load static %} {% block title %}Visualize
+Floor{% endblock %} {% block content %}
+<link rel="stylesheet" href="{% static '/select/css/multi-select-tag.css' %}" />
+<script src="{% static '/select/js/multi-select-tag.js' %}"></script>
+
+<div
+  class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-2 pb-1 mb-2 border-bottom">
+  <h1 class="h2" style="text-transform: capitalize">{{ floor.name }} floor</h1>
+</div>
+
+<div class="row form-group mb-2">
+  <div class="col">
+    <label for="items_name">Select Items</label>
+    <div class="d-flex flex-row gap-2" style=" position: relative; z-index: 50;">
+      <select name="items[]" id="items_name" multiple required>
+        {% for item in items %}
+        <option value="{{ item.id }}">
+          {{ item.name }} (₹{{ item.price }})
+        </option>
+        {% empty %}
+        <option disabled>No items available</option>
+        {% endfor %}
+      </select>
+      <button id="findRoute" class="btn btn-primary ps-3 pe-3">Find</button>
+
+      <script></script>
+    </div>
+  </div>
+</div>
+<div id="grid-container" class="grid-container"></div>
+
+<div class="legend">
+    <h2>Legend</h2>
+    <div class="legend-item">
+        <div class="legend-color shelf"></div>
+        <span>Shelf</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-color wall"></div>
+        <span>Wall</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-color checkout"></div>
+        <span>Checkout Area</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-color cart"></div>
+        <span>Cart</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-color entrance"></div>
+        <span>Entrance</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-color exit"></div>
+        <span>Exit</span>
+    </div>
+</div> 
+
+<style>
+  .grid-container {
+    display: grid;
+    grid-template-columns: repeat({{floor.width}}, 1fr);
+    margin-top: 20px;
+    padding: 10px;
+    border: 0;
+  }
+
+  .grid-item {
+    width: 100%;
+    aspect-ratio: 1;
+    background-color: #f8f9fa;
+    border: 0.5px solid #545454;
+  }
+
+  .grid-item.shelf {
+    background-color: #ffeb3b;
+  }
+  .grid-item.wall {
+    background-color: #6c757d;
+  }
+  .grid-item.checkout {
+    background-color: #198754;
+  }
+  .grid-item.cart {
+    background-color: #0dcaf0;
+  }
+  .grid-item.entrance {
+    background-color: #ffc107;
+  }
+  .grid-item.exit {
+    background-color: #dc3545;
+  }
+  .item-counter {
+    text-align: center;
+    padding: 2px;
+    font-size: 12px;
+    font-weight: bold;
+  }
+
+  /* path */
+  .grid-container {
+    position: relative;
+  }
+
+  .grid-item.route {
+    background-color: #28a745 !important;
+    animation: pulse 1.5s infinite;
+    position: relative;
+    z-index: 5;
+  }
+
+  .route-svg {
+    pointer-events: none;
+  }
+
+  @keyframes pulse {
+    0% {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.05);
+    }
+    100% {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+  }
+
+  /* legend */
+  .legend {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    display: inline-block;
+  }
+
+  .legend h2 {
+    font-size: 1.2em;
+    margin-bottom: 10px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+
+  .legend-color {
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+  }
+
+  .legend-color.shelf {
+    background-color: #ffeb3b;
+  }
+  .legend-color.wall {
+    background-color: #6c757d;
+  }
+  .legend-color.checkout {
+    background-color: #198754;
+  }
+  .legend-color.cart {
+    background-color: #0dcaf0;
+  }
+  .legend-color.entrance {
+    background-color: #ffc107;
+  }
+  .legend-color.exit {
+    background-color: #dc3545;
+  }
+</style>
+
+<script>
+      const shelves = {{ shelves|safe }};
+      const width = {{ floor.width }};
+      const length = {{ floor.length }};
+
+      const gridContainer = document.getElementById('grid-container');
+
+      for (let i = 0; i < length * width; i++) {
+          const gridItem = document.createElement('div');
+          gridItem.classList.add('grid-item');
+          gridContainer.appendChild(gridItem);
+      }
+
+      shelves.forEach(shelf => {
+          const gridItem = gridContainer.children[shelf.cell_index];
+          gridItem.classList.add(shelf.mode);
+
+          if (shelf.mode === 'shelf') {
+              if (shelf.item_ids && shelf.item_ids.length > 0) {
+                  gridItem.innerHTML = `<div class="item-counter">${shelf.item_ids.length} items</div>`;
+                  gridItem.setAttribute('data-bs-toggle', 'tooltip');
+                  gridItem.setAttribute('data-bs-html', 'true');
+                  gridItem.setAttribute('title', shelf.item_names.join('<br>'));
+
+                  new bootstrap.Tooltip(gridItem); // Initialize tooltip
+              }
+          }
+      });
+
+      document.addEventListener("DOMContentLoaded", function () {
+          document.querySelectorAll('.input-container').forEach(function (inputContainer) {
+              inputContainer.addEventListener('click', function () {
+                  let button = document.querySelector('.btn-container button');
+                  if (button) {
+                      button.click();
+                  }
+              });
+          });
+      });
+
+      new MultiSelectTag('items_name', {
+          rounded: true,
+          shadow: false,
+          placeholder: 'Search',
+      })
+
+
+
+
+
+
+//   7
+// Supermarket Navigation Script
+document.addEventListener('DOMContentLoaded', function() {
+    const findRouteBtn = document.getElementById('findRoute');
+    const itemsSelect = document.getElementById('items_name');
+    const gridContainer = document.getElementById('grid-container');
+
+    class SupermarketNavigator {
+        constructor(floor, width, length) {
+            this.floor = floor;
+            this.width = width;
+            this.length = length;
+        }
+
+ 
+        findShelvesWithItems(selectedItemIds) {
+    // console.log("🚀 Selected Item IDs:", selectedItemIds);
+
+    const shelves = [];
+    const selectedItemStrings = selectedItemIds.map(id => id.toString());  // Ensure string comparison
+
+    Object.entries(this.floor).forEach(([index, cell]) => {
+        if (cell.mode === 'shelf') {
+            // console.log(`📍 Checking shelf at index ${index}:`, cell);
+
+            if (Array.isArray(cell.itemIds) && cell.itemIds.length > 0) {
+                const cellItemStrings = cell.itemIds.map(id => id.toString());  // Convert all to strings
+                // console.log(`🛒 Shelf ${index} contains items:`, cellItemStrings);
+
+                // Compare selected item IDs with the shelf items
+                const matchedItems = cellItemStrings.filter(id => selectedItemStrings.includes(id));
+
+                if (matchedItems.length > 0) {
+                    // console.log(`✅ Match found at index ${index}:`, matchedItems);
+                    const row = Math.floor(index / this.width);
+                    const col = index % this.width;
+                    shelves.push({ index: parseInt(index), row, col, items: matchedItems });
+                }
+            }
+        }
+    });
+
+    // console.log("🏁 Shelves Found:", shelves);
+    return shelves;
+}
+
+
+        // Find first cell of a specific mode
+        findFirstCellOfMode(mode) {
+            for (const [index, cell] of Object.entries(this.floor)) {
+                if (cell.mode === mode) {
+                    const row = Math.floor(index / this.width);
+                    const col = index % this.width;
+                    return { index: parseInt(index), row, col };
+                }
+            }
+            return null;
+        }
+    }
+
+    class GridPathFinder {
+    constructor(floor, width, length, selectedItemIds) {
+        this.floor = floor;
+        this.width = width;
+        this.length = length;
+        this.selectedItemIds = selectedItemIds.map(id => id.toString());
+        this.grid = this.createNavigationGrid();
+    }
+
+    // Create a navigation grid with intelligent routing
+    createNavigationGrid() {
+        const grid = Array(this.length).fill().map(() => 
+            Array(this.width).fill(true)
+        );
+
+        Object.entries(this.floor).forEach(([index, cell]) => {
+            const row = Math.floor(index / this.width);
+            const col = index % this.width;
+
+            // Block walls completely
+            if (cell.mode === 'wall') {
+                grid[row][col] = false;
+            }
+
+            // Special handling for shelves
+            if (cell.mode === 'shelf') {
+                // If shelf has no items or no matching selected items, block it
+                if (!cell.itemIds || !cell.itemIds.some(id => 
+                    this.selectedItemIds.includes(id.toString())
+                )) {
+                    grid[row][col] = false;
+                }
+            }
+
+            // Block checkout and cart areas
+            if (cell.mode === 'checkout' || cell.mode === 'cart') {
+                grid[row][col] = false;
+            }
+        });
+
+        return grid;
+    }
+
+    // A* Pathfinding algorithm with flexible routing
+    findPath(start, end) {
+        const startRow = Math.floor(start / this.width);
+        const startCol = start % this.width;
+        const endRow = Math.floor(end / this.width);
+        const endCol = end % this.width;
+
+        const queue = [[startRow, startCol, [start]]];
+        const visited = new Set([`${startRow},${startCol}`]);
+
+        while (queue.length > 0) {
+            // Sort queue by heuristic (closest to end point)
+            queue.sort((a, b) => this.heuristic(a, endRow, endCol) - this.heuristic(b, endRow, endCol));
+            
+            const [row, col, path] = queue.shift();
+
+            // Reached destination
+            if (row === endRow && col === endCol) {
+                return path;
+            }
+
+            // Check adjacent cells (up, right, down, left)
+            const directions = [
+                [-1, 0], [0, 1], [1, 0], [0, -1]
+            ];
+
+            for (const [dx, dy] of directions) {
+                const newRow = row + dx;
+                const newCol = col + dy;
+                const newIndex = newRow * this.width + newCol;
+
+                // Validate new cell
+                if (this.isValidCell(newRow, newCol) && 
+                    this.grid[newRow][newCol] && 
+                    !visited.has(`${newRow},${newCol}`)) {
+                    
+                    visited.add(`${newRow},${newCol}`);
+                    queue.push([
+                        newRow, 
+                        newCol, 
+                        [...path, newIndex]
+                    ]);
+                }
+            }
+        }
+
+        return null; // No path found
+    }
+
+    // Check if cell is within grid bounds
+    isValidCell(row, col) {
+        return row >= 0 && row < this.length && 
+               col >= 0 && col < this.width;
+    }
+
+    // Manhattan distance heuristic
+    heuristic([row, col], endRow, endCol) {
+        return Math.abs(row - endRow) + Math.abs(col - endCol);
+    }
+}
+
+
+class RouteVisualizer {
+    constructor(gridContainer, width) {
+        this.gridContainer = gridContainer;
+        this.width = width;
+        this.svgContainer = null;
+    }
+
+    // Improved grid item center calculation with more robust error handling
+    getGridItemCenter(index) {
+        if (index === undefined || index === null) {
+            console.error('Invalid index provided');
+            return null;
+        }
+
+        const gridItem = this.gridContainer.children[index];
+        if (!gridItem) {
+            console.error(`No grid item found for index ${index}`);
+            return null;
+        }
+
+        const containerRect = this.gridContainer.getBoundingClientRect();
+        const itemRect = gridItem.getBoundingClientRect();
+
+        return {
+            x: itemRect.left - containerRect.left + itemRect.width / 2,
+            y: itemRect.top - containerRect.top + itemRect.height / 2
+        };
+    }
+
+    // Create full-screen SVG container
+    createSVGContainer() {
+        // Remove any existing SVG
+        const existingSvg = this.gridContainer.querySelector('svg.route-svg');
+        if (existingSvg) existingSvg.remove();
+
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.classList.add('route-svg');
+        svg.style.position = 'absolute';
+        svg.style.top = '0';
+        svg.style.left = '0';
+        svg.style.width = '100%';
+        svg.style.height = '100%';
+        svg.style.pointerEvents = 'none';
+        svg.style.zIndex = '45';
+
+        this.gridContainer.style.position = 'relative';
+        this.gridContainer.appendChild(svg);
+        this.svgContainer = svg;
+
+        return svg;
+    }
+
+    // Create marker for arrows
+    createArrowMarker(svg) {
+        const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+        
+        // Gradient marker
+        const linearGradient = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+        linearGradient.setAttribute('id', 'blueGradient');
+        linearGradient.setAttribute('x1', '0%');
+        linearGradient.setAttribute('y1', '0%');
+        linearGradient.setAttribute('x2', '100%');
+        linearGradient.setAttribute('y2', '0%');
+
+        const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+        stop1.setAttribute('offset', '0%');
+        stop1.setAttribute('stop-color', '#3498db');
+
+        const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+        stop2.setAttribute('offset', '100%');
+        stop2.setAttribute('stop-color', '#2ecc71');
+
+        linearGradient.appendChild(stop1);
+        linearGradient.appendChild(stop2);
+
+        // Arrowhead marker
+        const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+        marker.setAttribute('id', 'arrow');
+        marker.setAttribute('markerWidth', '10');
+        marker.setAttribute('markerHeight', '7');
+        marker.setAttribute('refX', '5');
+        marker.setAttribute('refY', '3.5');
+        marker.setAttribute('orient', 'auto');
+
+        const arrowhead = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        arrowhead.setAttribute('points', '0 0, 10 3.5, 0 7');
+        arrowhead.setAttribute('fill', 'url(#blueGradient)');
+
+        marker.appendChild(arrowhead);
+        defs.appendChild(linearGradient);
+        defs.appendChild(marker);
+
+        svg.appendChild(defs);
+    }
+
+    // Draw path between two points
+    drawRoutePath(start, end, svg) {
+        if (!start || !end) {
+            console.error('Invalid start or end points');
+            return null;
+        }
+
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute('d', `M ${start.x} ${start.y} L ${end.x} ${end.y}`);
+        path.setAttribute('stroke', 'url(#blueGradient)');
+        path.setAttribute('stroke-width', '4');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('marker-end', 'url(#arrow)');
+
+        return path;
+    }
+
+    // Main route visualization method
+    visualizeRoute(route) {
+        console.log('Visualizing route:', route);
+
+        // Create SVG container
+        const svg = this.createSVGContainer();
+
+        // Create arrow marker
+        this.createArrowMarker(svg);
+
+        // Highlight route cells
+        route.forEach(index => {
+            const gridItem = this.gridContainer.children[index];
+            if (gridItem) {
+                gridItem.classList.add('route-highlight');
+            }
+        });
+
+        // Draw route paths
+        for (let i = 0; i < route.length - 1; i++) {
+            const start = this.getGridItemCenter(route[i]);
+            const end = this.getGridItemCenter(route[i + 1]);
+
+            if (start && end) {
+                const routePath = this.drawRoutePath(start, end, svg);
+                if (routePath) {
+                    svg.appendChild(routePath);
+                }
+            }
+        }
+    }
+}
+
+// Add CSS for route highlighting
+const styleSheet = document.createElement('style');
+styleSheet.textContent = `
+    .route-highlight {
+        background-color: rgba(52, 152, 219, 0.2) !important;
+        transition: background-color 0.3s ease;
+    }
+`;
+document.head.appendChild(styleSheet);
+
+    findRouteBtn.addEventListener('click', function() {
+    // Get selected item IDs
+    const selectedItems = Array.from(
+        itemsSelect.selectedOptions
+    ).map(option => option.value);
+
+    // Validate item selection
+    if (selectedItems.length === 0) {
+        alert('Please select at least one item');
+        return;
+    }
+
+    // Create navigator and path finder
+    const navigator = new SupermarketNavigator(
+        {{ floor_data_json|safe }}, 
+        {{ floor.width }}, 
+        {{ floor.length }}
+    );
+
+    const pathFinder = new GridPathFinder(
+        {{ floor_data_json|safe }}, 
+        {{ floor.width }}, 
+        {{ floor.length }},
+        selectedItems  
+    );
+
+    // Find key locations
+    const entrance = navigator.findFirstCellOfMode('entrance');
+    console.log('entrance: ',entrance);
+    const cart = navigator.findFirstCellOfMode('cart');
+    const checkout = navigator.findFirstCellOfMode('checkout');
+    const exit = navigator.findFirstCellOfMode('exit');
+
+    // Find shelves with selected items
+    const itemShelves = navigator.findShelvesWithItems(selectedItems);
+
+    // Validate location finding
+    if (!entrance || !cart || !checkout || !exit || itemShelves.length === 0) {
+        alert('Could not find all required locations or items');
+        return;
+    }
+
+    // // Construct route with clear, logical flow
+    // let fullRoute = [];
+    // let currentLocation = entrance.index;
+
+    let currentLocation = entrance.index;
+    console.log('Starting from entrance at index:', currentLocation);
+
+    // Construct route with clear, logical flow
+    let fullRoute = [currentLocation];
+
+    // 1. Route from entrance to cart
+    const toCartPath = pathFinder.findPath(currentLocation, cart.index);
+    fullRoute = fullRoute.concat(toCartPath);
+    currentLocation = cart.index;
+
+    // 2. Route from cart to each item shelf in order
+    itemShelves.forEach(shelfLocation => {
+        const toShelfPath = pathFinder.findPath(currentLocation, shelfLocation.index);
+        fullRoute = fullRoute.concat(toShelfPath);
+        currentLocation = shelfLocation.index;
+    });
+
+    // 3. Route from last shelf to checkout
+    // const toCheckoutPath = pathFinder.findPath(currentLocation, checkout.index);
+    // fullRoute = fullRoute.concat(toCheckoutPath);
+    // currentLocation = checkout.index;
+
+    // 4. Route from checkout to exit
+    const toExitPath = pathFinder.findPath(currentLocation, exit.index);
+    fullRoute = fullRoute.concat(toExitPath);
+
+    // Visualize route
+    const visualizer = new RouteVisualizer(gridContainer, {{ floor.width }});
+    visualizer.visualizeRoute(fullRoute);
+});
+
+
+
+    
+});
+
+
+
+</script>
+
+{% endblock %}

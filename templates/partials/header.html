@@ -1,0 +1,43 @@
+<style>
+  .bg-dark {
+    background-color: rgb(30, 72, 158) !important;
+  }
+</style>
+<header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
+
+  <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6" href="/">SuperMart</a>
+
+  <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-bs-toggle="collapse"
+    data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  <!-- <form class="nav col-12 col-md-auto flex-fill mb-2 justify-content-center mb-md-0" role="search" method="POST" action="/search">
+      <input type="search" name="searchTerm" class="form-control form-control-dark w-100 rounded-0 border-0" placeholder="Search..." aria-label="Search">
+    </form> -->
+
+  <div class="d-flex justify-content-end align-items-center col-md-9 col-lg-10">
+    <ul class="navbar-nav px-3 d-flex flex-row align-items-center">
+      {% if request.user.is_authenticated %}
+      <li class="nav-item text-nowrap me-3">
+        <a class="nav-link" aria-current="page" href="#">
+          <i class="bi bi-person-fill"></i> {{ request.user }}
+        </a>
+      </li>
+      <li class="nav-item text-nowrap">
+        <form id="logoutForm" action="{% url 'dashboard-index' %}" method="post">
+          {% csrf_token %}
+          <button class="btn btn-sm btn-danger" type="submit"><i class="bi bi-box-arrow-right"></i>
+            Logout</button>
+        </form>
+      </li>
+      {% endif %}
+    </ul>
+  </div>
+  <div class="btn-toolbar m-2">
+    <div class="btn-group me-2">
+      
+    </div>
+  </div>
+
+</header>

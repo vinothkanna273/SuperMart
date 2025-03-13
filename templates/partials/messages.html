@@ -1,0 +1,20 @@
+{% load static %}
+{% if messages %}
+<div class="messages">
+    {% for message in messages %}
+    <div class="alertmsg alert alert-sm alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<script src="{% static '/jquery/jquery.js' %}"></script>
+<script>
+    $(document).ready(function () {
+        setTimeout(function () {
+            $(".alertmsg").alert('close');
+        }, 5000);
+    });
+</script>

@@ -1,0 +1,423 @@
+{% extends 'partials/base.html' %}
+{% block title %}Build{% endblock %}
+{% block description %}Building page{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-2 pb-1 mb-2 border-bottom">
+    <h1 class="h2">Indoor Planning</h1>
+</div>
+
+<!-- toast msg -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="successToast" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive"
+        aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                Floor data saved successfully!
+            </div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+
+<div>
+    <div class="card">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-2">
+                    <label for="length">Length:</label>
+                    <input type="number" id="length" class="form-control form-control-sm" value="10"
+                        placeholder="50 ft" />
+                </div>
+                <div class="col-md-2">
+                    <label for="width">Width:</label>
+                    <input type="number" id="width" class="form-control form-control-sm" value="25"
+                        placeholder="50 ft" />
+                </div>
+                <div class="col-md-1 d-flex align-items-center justify-content-center">
+                    <button class="btn btn-primary" onclick="generateGrid()">Generate</button>
+                </div>
+                <div class="col d-flex align-items-center justify-content-between ms-3">
+                    <button id="mode-shelf" class="btn btn-secondary" onclick="setMode('shelf')">Shelf</button>
+                    <button id="mode-wall" class="btn btn-secondary" onclick="setMode('wall')">Wall</button>
+                    <button id="mode-checkout" class="btn btn-secondary" onclick="setMode('checkout')">Checkout
+                        Area</button>
+                    <button id="mode-cart" class="btn btn-secondary" onclick="setMode('cart')">Cart</button>
+                    <button id="mode-entrance" class="btn btn-secondary" onclick="setMode('entrance')">Entrance</button>
+                    <button id="mode-exit" class="btn btn-secondary" onclick="setMode('exit')">Exit</button>
+                    <button id="mode-store" class="btn btn-secondary" onclick="setMode('store')">Store Data</button>
+                </div>
+                <div class="col-md-1 d-flex align-items-center justify-content-center">
+                    <button class="btn btn-primary" id="saveButton">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 p-1 mt-1">
+    <div id="grid-container" class="grid-container"></div>
+</div>
+<div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addItemModalLabel">Add Items to Shelf</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Select up to 3 items to add to this shelf:</p>
+                <div id="item-list">
+                    {% for item in items %}
+                    <div class="form-check">
+                        <input class="form-check-input shelf-item-checkbox" type="checkbox" value="{{ item.id }}"
+                            id="item{{ item.id }}">
+                        <label class="form-check-label" for="item{{ item.id }}">
+                            {{ item.name }} (₹{{ item.price }})
+                        </label>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted">No items available.</p>
+                    {% endfor %}
+                </div>
+                <small id="selectionError" class="text-danger d-none">You can only select up to 3 items!</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveShelfItems">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .grid-container {
+        display: grid;
+        margin-top: 20px;
+        padding: 10px;
+        border: 0;
+    }
+
+    .grid-item {
+        width: 100%;
+        aspect-ratio: 1;
+        background-color: #f8f9fa;
+        border: 0.5px solid #545454;
+        cursor: pointer;
+    }
+
+    .grid-item:hover {
+        background-color: #cfe2ff;
+    }
+
+    /* Area-specific styles */
+    .grid-item.shelf {
+        background-color: #ffeb3b;
+        /* Shelf: Yellow */
+    }
+
+    .grid-item.wall {
+        background-color: #6c757d;
+        /* Wall: Gray */
+    }
+
+    .grid-item.checkout {
+        background-color: #198754;
+        /* Checkout Area: Green */
+    }
+
+    .grid-item.cart {
+        background-color: #0dcaf0;
+        /* Cart: Cyan */
+    }
+
+    .grid-item.entrance {
+        background-color: #ffc107;
+        /* Entrance: Orange */
+    }
+
+    .grid-item.exit {
+        background-color: #dc3545;
+        /* Exit: Red */
+    }
+
+    .item-counter {
+        text-align: center;
+        padding: 2px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+</style>
+
+<script>
+    let selectedMode = null;
+    let isDragging = false;
+    let selectedGridCell = null;
+    let shelves = {};
+    let tooltipInstances = {};
+
+    function setMode(mode) {
+        selectedMode = mode;
+        // Reset button styles
+        document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('btn-success'));
+        document.getElementById(`mode-${mode}`).classList.add('btn-success');
+    }
+
+    function generateGrid() {
+        const length = parseInt(document.getElementById('length').value);
+        const width = parseInt(document.getElementById('width').value);
+        const gridContainer = document.getElementById('grid-container');
+
+        // Validate inputs
+        if (isNaN(length) || isNaN(width) || length <= 0 || width <= 0) {
+            alert('Please enter valid positive numbers for length and width.');
+            return;
+        }
+
+        // Clear any existing grid
+        gridContainer.innerHTML = '';
+
+        // Reset shelves data and tooltip instances
+        shelves = {};
+        tooltipInstances = {};
+
+        // Set grid properties dynamically
+        gridContainer.style.gridTemplateColumns = `repeat(${width}, 1fr)`;
+
+        // Create a DocumentFragment to hold the cells
+        const fragment = document.createDocumentFragment();
+
+        // Generate grid cells
+        for (let i = 0; i < length * width; i++) {
+            const gridItem = document.createElement('div');
+            gridItem.classList.add('grid-item');
+            gridItem.dataset.cellIndex = i; // Add a data attribute for cell index
+
+            // Toggle state on mousedown
+            gridItem.addEventListener('mousedown', () => {
+                if (selectedMode) {
+                    isDragging = true;
+                    toggleCellState(gridItem);
+                }
+            });
+
+            // Apply state on mouseover while dragging
+            gridItem.addEventListener('mouseover', () => {
+                if (isDragging && selectedMode) {
+                    setCellState(gridItem);
+                }
+            });
+
+            fragment.appendChild(gridItem);
+        }
+
+        // Append the fragment to the container
+        gridContainer.appendChild(fragment);
+
+        // Add global event listeners to handle drag state
+        document.addEventListener('mouseup', () => (isDragging = false));
+    }
+
+    function saveItemsToShelf() {
+        const selectedItems = Array.from(document.querySelectorAll('.shelf-item-checkbox:checked'));
+
+        if (selectedItems.length > 3) {
+            document.getElementById('selectionError').classList.remove('d-none');
+            return;
+        }
+
+        document.getElementById('selectionError').classList.add('d-none');
+
+        // Get cell index from the data attribute
+        const cellIndex = selectedGridCell.dataset.cellIndex;
+
+        // Destroy existing tooltip if any
+        if (tooltipInstances[cellIndex]) {
+            tooltipInstances[cellIndex].dispose();
+        }
+
+        // Store selected item IDs and names in the shelves object
+        shelves[cellIndex] = {
+            mode: 'shelf',
+            itemIds: selectedItems.map(item => item.value),
+            itemNames: selectedItems.map(item => item.nextElementSibling.textContent.trim())
+        };
+
+        // Update the display to show only the count
+        selectedGridCell.innerHTML = '';
+
+        // Create a counter element
+        const counterElement = document.createElement('div');
+        counterElement.classList.add('item-counter');
+        counterElement.textContent = `${selectedItems.length} items`;
+
+        selectedGridCell.appendChild(counterElement);
+
+        // Make sure the cell has the shelf class
+        if (!selectedGridCell.classList.contains('shelf')) {
+            selectedGridCell.classList.add('shelf');
+        }
+
+        // Add tooltip to show items on hover
+        // selectedGridCell.setAttribute('data-bs-toggle', 'tooltip');
+        // selectedGridCell.setAttribute('data-bs-html', 'true');
+        // selectedGridCell.setAttribute('title', shelves[cellIndex].itemNames.join('<br>'));
+
+        // Initialize tooltip and store the instance
+        // tooltipInstances[cellIndex] = new bootstrap.Tooltip(selectedGridCell);
+
+        // Hide the modal
+        bootstrap.Modal.getInstance(document.getElementById('addItemModal')).hide();
+    }
+
+    function toggleCellState(cell) {
+        if (selectedMode === 'store') {
+            // Only show modal if the cell is a shelf
+            if (cell.classList.contains('shelf')) {
+                selectedGridCell = cell;
+
+                // Reset checkboxes based on current shelf items
+                const cellIndex = cell.dataset.cellIndex;
+                const checkboxes = document.querySelectorAll('.shelf-item-checkbox');
+
+                // Uncheck all checkboxes first
+                checkboxes.forEach(checkbox => checkbox.checked = false);
+
+                // Check boxes for items that are already on this shelf
+                if (shelves[cellIndex] && shelves[cellIndex].itemIds) {
+                    shelves[cellIndex].itemIds.forEach(itemId => {
+                        const checkbox = document.querySelector(`.shelf-item-checkbox[value="${itemId}"]`);
+                        if (checkbox) checkbox.checked = true;
+                    });
+                }
+
+                // Show the modal
+                const modal = new bootstrap.Modal(document.getElementById('addItemModal'));
+                modal.show();
+            } else {
+                alert('You can only add items to shelves. Please select a shelf first.');
+                console.log(selectedMode)
+            }
+        } else {
+            // Original behavior for other modes
+            if (cell.classList.contains(selectedMode)) {
+                // If removing a shelf that has items, clean up
+                if (selectedMode === 'shelf') {
+                    const cellIndex = cell.dataset.cellIndex;
+
+                    // Dispose of tooltip if it exists
+                    if (tooltipInstances[cellIndex]) {
+                        tooltipInstances[cellIndex].dispose();
+                        delete tooltipInstances[cellIndex];
+                    }
+
+                    // Remove from shelves data
+                    if (shelves[cellIndex]) {
+                        delete shelves[cellIndex];
+                    }
+                }
+
+                cell.className = 'grid-item'; // Reset to default
+                cell.innerHTML = ''; // Clear any content
+
+            } else {
+                setCellState(cell);
+            }
+        }
+    }
+
+    function setCellState(cell) {
+        // If changing a shelf that has items, clean up
+        if (cell.classList.contains('shelf')) {
+            const cellIndex = cell.dataset.cellIndex;
+
+            // Dispose of tooltip if it exists
+            if (tooltipInstances[cellIndex]) {
+                tooltipInstances[cellIndex].dispose();
+                delete tooltipInstances[cellIndex];
+            }
+
+            // Remove from shelves data
+            if (shelves[cellIndex]) {
+                delete shelves[cellIndex];
+            }
+
+            cell.innerHTML = ''; // Clear any content
+        }
+
+        cell.className = `grid-item ${selectedMode}`; // Set to selected mode
+
+        //update shelves data
+        if (!shelves[cell.dataset.cellIndex]) {
+            shelves[cell.dataset.cellIndex] = {
+                "mode": selectedMode
+            };
+        } else {
+            shelves[cell.dataset.cellIndex]["mode"] = selectedMode;
+        }
+        // console.log(shelves)
+    }
+
+    function saveFloorData() {
+        const floorName = prompt("Enter the name of the floor:");
+
+        if (floorName === null || floorName.trim() === "") {
+            alert("Floor name cannot be empty.");
+            return; // Exit if the user cancels or enters an empty name
+        }
+        const length = parseInt(document.getElementById('length').value);
+        const width = parseInt(document.getElementById('width').value);
+
+        // Prepare the data to send
+        const data = {
+            name: floorName,
+            length: length,
+            width: width,
+            shelves: shelves
+        };
+
+        // Send the data to the backend using fetch
+        fetch('/save-floor-data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json(); // Or response.text() if your backend sends plain text
+            })
+            .then(responseData => {
+                console.log('Floor data saved successfully:', responseData);
+                let successToast = new bootstrap.Toast(document.getElementById('successToast'));
+                successToast.show();
+                // alert('Floor data saved successfully!');
+            })
+            .catch(error => {
+                console.error('Error saving floor data:', error);
+            });
+    }
+
+    // Initialize event listeners when the DOM is loaded
+    document.addEventListener('DOMContentLoaded', function () {
+        // Connect store mode button
+        document.getElementById('mode-store').addEventListener('click', function () {
+            setMode('store');
+        });
+
+        // Connect save button in modal
+        document.getElementById('saveShelfItems').addEventListener('click', saveItemsToShelf);
+
+        // Initialize the first grid
+        generateGrid();
+
+        // data send of floor
+        document.getElementById('saveButton').addEventListener('click', saveFloorData);
+    });
+
+</script>
+{% endblock content %}

@@ -1,0 +1,49 @@
+<!-- pagination -->
+
+{% if items.has_other_pages %}
+<nav aria-label="Items Pagination">
+    <ul class="pagination justify-content-center mt-3">
+        {% if items.number > 1 %}
+        <li class="page-item">
+            <a href="?page=1" class="page-link">First</a>
+        </li>
+        <li class="page-item">
+            <a href="?page={{ items.previous_page_number }}" class="page-link">Previous</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+            <a href="#" class="page-link">First</a>
+        </li>
+        <li class="page-item disabled">
+            <a href="#" class="page-link">Previous</a>
+        </li>
+        {% endif %}
+
+        {% for i in items.paginator.page_range %}
+        {% if i == items.number %}
+        <li class="page-item active">
+            <a href="#" class="page-link">{{ i }}</a>
+        </li>
+        {% elif i >= items.number|add:-5 and i <= items.number|add:5 %} <li class="page-item">
+            <a href="?page={{ i }}" class="page-link">{{ i }}</a>
+            </li>
+            {% endif %}
+            {% endfor %}
+
+            {% if items.number < items.paginator.num_pages %} <li class="page-item">
+                <a href="?page={{ items.next_page_number }}" class="page-link">Next</a>
+                </li>
+                <li class="page-item">
+                    <a href="?page={{ items.paginator.num_pages }}" class="page-link">Last</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <a href="#" class="page-link">Next</a>
+                </li>
+                <li class="page-item disabled">
+                    <a href="#" class="page-link">Last</a>
+                </li>
+                {% endif %}
+    </ul>
+</nav>
+{% endif %}

@@ -1,0 +1,49 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}{% endblock %}</title>
+
+    <link rel="icon" href="{% static '/img/supermart2-icon.png' %}" type="image/icon">
+    <meta name="description" content="{% block description %}{% endblock %}" />
+
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="{% static '/Bootstrap/css/bootstrap.min.css' %}" />
+    <link rel="stylesheet" href="{% static '/Bootstrap/icons/font/bootstrap-icons.min.css' %}" />
+    <link rel="stylesheet" href="{% static '/multi/multi.css' %}" />
+    <link rel="stylesheet" href="{% static '/fontawesome/css/all.min.css' %}" />
+
+
+    <!-- CSS -->
+    <link rel="stylesheet" type="text/css" href="{% static '/css/main.css' %}" />
+
+    <!-- sortable -->
+    <script src="{% static '/sortable/Sortable.min.js' %}"></script>
+    <script src="{% static '/Bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+</head>
+
+<body class="bg-grey">
+    {% include 'partials/header.html' %}
+
+    <div class="container-fluid">
+        <div class="row">
+            {% include 'partials/sidebar.html' %}
+
+            <main class="col-md-9 col-lg-10 px-md-4 ms-sm-auto">
+                {% block content %} {% endblock content %}
+            </main>
+        </div>
+    </div>
+
+    <!-- Bootstrap script -->
+    <script src="{% static '/Bootstrap/js/bootstrap.min.js' %}"></script>
+    <script src="{% static '/jquery/jquery.js' %}"></script>
+    <script src="{% static '/multi/multi.js' %}"></script>
+    <script src="{% static '/fontawesome/js/all.min.js' %}"></script>
+
+</body>
+
+</html>
