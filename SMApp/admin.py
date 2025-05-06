@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Item, Floor, Shelf
+from .models import Item, Floor, Shelf, Transaction
 
 
 admin.site.site_header='SuperMart admin Dashboard'
@@ -17,3 +17,9 @@ class ShelfAdmin(admin.ModelAdmin):
     search_fields = ('item_names',)
 
 admin.site.register(Floor)
+
+# admin.site.register(Transaction)
+@admin.register(Transaction)
+class ShelfAdmin(admin.ModelAdmin):
+    list_display = ('item_name', 'user', 'timestamp', 'quantity', 'total_price')
+    search_fields = ('item_name',)

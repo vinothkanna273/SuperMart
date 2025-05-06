@@ -1,0 +1,46 @@
+{% extends 'partials/base.html'%}
+{% block title %}History{% endblock %}
+{% block description %}history of all transactions{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md nowrap align-items-center pt-1">
+    <h1 class="h2">History</h1>
+</div>
+
+{% include 'partials/messages.html'%}
+
+<div class="card shadow-sm border-0 p-2 pb-0 mt-1">
+    <div class="table-responsive app-table">
+        {% if items %}
+        <table class="table table-hover table-sm">
+            <thead>
+                <tr>
+                    <th scope="col">Item name</th>
+                    <th scope="col">Quantity</th>
+                    <th scope="col">Total price</th>
+                    <th scope="col">Bought by</th>
+                    <th scope="col">Date & Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr class="align-middle">
+                    <td>{{ item.item_name }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>{{ item.total_price }}</td>
+                    <td>{{ item.user }}</td>
+                    <td>{{ item.timestamp }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="alert alert-warning" role="alert">
+            No transactions found.
+        </div>
+        {% endif %}
+    </div>
+
+
+
+{% endblock content %}

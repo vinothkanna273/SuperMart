@@ -1,0 +1,31 @@
+{% extends 'partials/base.html'%}
+{% load static %}
+{% load crispy_forms_tags %}
+{% block title %}Edit Item{% endblock %}
+{% block description %}edit item {% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between flex-wrap flex-md nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Edit Item</h1>
+</div>
+<div class="container">
+    <div class="row">
+        <!-- <div class="col-lg-6 offset-md-3">
+            <div class="border bg-white p-3 m-5"> -->
+                <form method="POST">
+
+                    {% csrf_token %}
+                    {{ form|crispy }}
+                    <br>
+                    <div class="form-group mb-4 pt-2">
+                        <a href="{% url 'items-list' %}" class="btn btn-danger">Cancel</a>
+                        <button type="submit" class="btn btn-success">Submit</button>
+                    </div>
+                </form>
+            <!-- </div>
+        </div> -->
+    </div>
+</div>
+<br>
+{% endblock content %}

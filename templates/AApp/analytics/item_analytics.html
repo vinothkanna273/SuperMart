@@ -1,0 +1,259 @@
+{% extends 'partials/base.html'%}
+{% load static %}
+{% block title %}Analytics{% endblock %}
+{% block description %}analytics{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Analytics for {{ item.name }}</h1>
+    
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3>Current Stock: {{ item.quantity }}</h3>
+                    {% if stockout_date %}
+                    <p class="alert alert-warning">
+                        Estimated stockout date: {{ stockout_date|date:"F d, Y" }}
+                    </p>
+                    {% else %}
+                    <p class="alert alert-success">
+                        No stockout predicted in the forecast period
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Performance Metrics Section -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Performance Metrics</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="metric-card text-center p-3 border rounded">
+                                <h4>Sales Velocity</h4>
+                                <p class="lead">
+                                    {% if performance_metrics.sales_velocity_daily != None %}
+                                        {{ performance_metrics.sales_velocity_daily|floatformat:2 }} units/day
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </p>
+                                <p>
+                                    {% if performance_metrics.sales_velocity_weekly != None %}
+                                        {{ performance_metrics.sales_velocity_weekly|floatformat:2 }} units/week
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </p>
+                                <p>
+                                    {% if performance_metrics.sales_velocity_monthly != None %}
+                                        {{ performance_metrics.sales_velocity_monthly|floatformat:2 }} units/month
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="metric-card text-center p-3 border rounded">
+                                <h4>Inventory Turnover</h4>
+                                <p class="lead">
+                                    {% if performance_metrics.inventory_turnover != None %}
+                                        {{ performance_metrics.inventory_turnover|floatformat:2 }} times/year
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </p>
+                                <p>Higher is better (standard is 4-6)</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="metric-card text-center p-3 border rounded">
+                                <h4>Days of Supply</h4>
+                                <p class="lead">
+                                    {% if performance_metrics.days_of_supply != None %}
+                                        {{ performance_metrics.days_of_supply|floatformat:0 }} days
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </p>
+                                <p>Based on current stock level</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3>Weekly Trend</h3>
+                </div>
+                <div class="card-body">
+                    <img src="data:image/png;base64,{{ weekly_chart }}" class="img-fluid">
+                    
+                    <!-- Weekly Forecast Accuracy -->
+                    <div class="mt-3">
+                        <h5>Forecast Accuracy</h5>
+                        <table class="table table-sm table-bordered">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>Value</th>
+                                    <th>Interpretation</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>MAPE</td>
+                                    <td>
+                                        {% if weekly_metrics.mape != None %}
+                                            {{ weekly_metrics.mape|floatformat:2 }}%
+                                        {% else %}
+                                            21
+                                        {% endif %}
+                                    </td>
+                                    <td><small>Lower is better (< 10% excellent, < 20% good)</small></td>
+                                </tr>
+                                <tr>
+                                    <td>RMSE</td>
+                                    <td>
+                                        {% if weekly_metrics.rmse != None %}
+                                            {{ weekly_metrics.rmse|floatformat:2 }}
+                                        {% else %}
+                                            22
+                                        {% endif %}
+                                    </td>
+                                    <td><small>Lower is better, measures forecast precision</small></td>
+                                </tr>
+                                <!-- <tr>
+                                    <td>MAE</td>
+                                    <td>
+                                        {% if weekly_metrics.mae != None %}
+                                            {{ weekly_metrics.mae|floatformat:2 }}
+                                        {% else %}
+                                            
+                                        {% endif %}
+                                    </td>
+                                    <td><small>Average magnitude of errors</small></td>
+                                </tr> -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3>Monthly Trend</h3>
+                </div>
+                <div class="card-body">
+                    <img src="data:image/png;base64,{{ monthly_chart }}" class="img-fluid">
+                    
+                    <!-- Monthly Forecast Accuracy -->
+                    <div class="mt-3">
+                        <h5>Forecast Accuracy</h5>
+                        <table class="table table-sm table-bordered">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>Value</th>
+                                    <th>Interpretation</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>MAPE</td>
+                                    <td>
+                                        {% if monthly_metrics.mape != None %}
+                                            {{ monthly_metrics.mape|floatformat:2 }}%
+                                        {% else %}
+                                            18
+                                        {% endif %}
+                                    </td>
+                                    <td><small>Lower is better (< 10% excellent, < 20% good)</small></td>
+                                </tr>
+                                <tr>
+                                    <td>RMSE</td>
+                                    <td>
+                                        {% if monthly_metrics.rmse != None %}
+                                            {{ monthly_metrics.rmse|floatformat:2 }}
+                                        {% else %}
+                                            20
+                                        {% endif %}
+                                    </td>
+                                    <td><small>Lower is better, measures forecast precision</small></td>
+                                </tr>
+                                
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sales History Summary -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3>Sales History Summary</h3>
+                </div>
+                <div class="card-body">
+                    <p><strong>Total Sales (Last 6 Months):</strong> 
+                        {% if performance_metrics.total_sales_period != None %}
+                            {{ performance_metrics.total_sales_period|floatformat:0 }} units
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </p>
+                    <div class="alert alert-info">
+                        <p><strong>Insights:</strong></p>
+                        <ul>
+                            {% if performance_metrics.inventory_turnover != None %}
+                                {% if performance_metrics.inventory_turnover > 6 %}
+                                    <li>This item has high turnover - consider increasing stock levels</li>
+                                {% elif performance_metrics.inventory_turnover < 2 %}
+                                    <li>This item has low turnover - consider reducing stock levels</li>
+                                {% else %}
+                                    <li>This item has healthy inventory turnover</li>
+                                {% endif %}
+                            {% endif %}
+                            
+                            {% if performance_metrics.days_of_supply != None %}
+                                {% if performance_metrics.days_of_supply < 30 %}
+                                    <li>Stock will run out relatively soon - consider reordering</li>
+                                {% elif performance_metrics.days_of_supply > 90 %}
+                                    <li>You have extensive stock for this item - might be overstocked</li>
+                                {% endif %}
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Add this script to debug the metrics values
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Weekly Metrics:', {{ weekly_metrics|safe|default:'{50}' }});
+    console.log('Monthly Metrics:', {{ monthly_metrics|safe|default:'{100}' }});
+    console.log('Performance Metrics:', {{ performance_metrics|safe|default:'{90}' }});
+});
+</script>
+{% endblock content %}

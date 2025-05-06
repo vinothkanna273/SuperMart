@@ -3,8 +3,182 @@
 {% block description %}Dashboard for admin to view detail{% endblock %}
 
 
+
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-2 pb-1 mb-2 border-bottom">
+<div class="d-flex justify-content-between flex-wrap flex-md nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Dashboard</h1>
 </div>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h3>Overall Sales Forecast</h3>
+                </div>
+                <div class="card-body">
+                    <img src="data:image/png;base64,{{ overall_chart }}" class="img-fluid">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header bg-warning">
+                    <h3>Items Requiring Attention</h3>
+                </div>
+                <div class="card-body">
+                    {% if items_with_stockout %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Current Stock</th>
+                                    <th>Price</th>
+                                    <th>Predicted Stockout Date</th>
+                                    <th>Days Until Stockout</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item_data in items_with_stockout %}
+                                <tr>
+                                    <td>{{ item_data.item.name }}</td>
+                                    <td>{{ item_data.item.quantity }}</td>
+                                    <td>₹{{ item_data.item.price }}</td>
+                                    <td>{{ item_data.stockout_date|date:"F d, Y" }}</td>
+                                    <td>
+                                        {% with days_until=item_data.stockout_date|timeuntil %}
+                                            {% if "," in days_until %}
+                                            {{ days_until|truncatechars:days_until|cut:" days" }} days
+                                        {% else %}
+                                            {{ days_until }}
+                                        {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'item_analytics' item_data.item.id %}" class="btn btn-primary btn-sm">View Details</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-success">
+                        <p class="mb-0">No stockouts predicted in the forecast period for any items.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h3>Inventory Summary</h3>
+                </div>
+                <div class="card-body">
+                    <canvas id="inventoryChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h3>Latest Transactions</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Quantity</th>
+                                    <th>Total</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for transaction in latest_transactions %}
+                                <tr>
+                                    <td>{{ transaction.item_name }}</td>
+                                    <td>{{ transaction.quantity }}</td>
+                                    <td>₹{{ transaction.total_price }}</td>
+                                    <td>{{ transaction.timestamp|date:"M d, H:i" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Sample data - you would need to pass this from your view
+    const ctx = document.getElementById('inventoryChart').getContext('2d');
+    
+    // Create the chart using the Canvas API
+    const inventoryChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: [{% for item in items %}'{{ item.name }}',{% endfor %}],
+            datasets: [{
+                label: 'Inventory Count',
+                data: [{% for item in items %}{{ item.quantity }},{% endfor %}],
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.7)',
+                    'rgba(54, 162, 235, 0.7)',
+                    'rgba(255, 206, 86, 0.7)',
+                    'rgba(75, 192, 192, 0.7)',
+                    'rgba(153, 102, 255, 0.7)',
+                    'rgba(255, 159, 64, 0.7)',
+                    'rgba(199, 199, 199, 0.7)',
+                    'rgba(83, 102, 255, 0.7)',
+                    'rgba(40, 159, 64, 0.7)',
+                    'rgba(255, 99, 132, 0.7)'
+                ],
+                borderColor: [
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(153, 102, 255, 1)',
+                    'rgba(255, 159, 64, 1)',
+                    'rgba(199, 199, 199, 1)',
+                    'rgba(83, 102, 255, 1)',
+                    'rgba(40, 159, 64, 1)',
+                    'rgba(255, 99, 132, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'right',
+                },
+                title: {
+                    display: true,
+                    text: 'Current Inventory'
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock extra_js %}
 {% endblock content %}
