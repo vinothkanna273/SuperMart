@@ -30,6 +30,7 @@ urlpatterns = [
     path('payment-success/', views.payment_success, name='payment_success'),
 
     path('analytics/item/<int:item_id>/', views.item_analytics_view, name='item_analytics'),
+    path('debug-forecast/', views.debug_forecast_data, name='debug-forecast'),
 
 
 ]

@@ -120,7 +120,7 @@
                                         {% if weekly_metrics.mape != None %}
                                             {{ weekly_metrics.mape|floatformat:2 }}%
                                         {% else %}
-                                            21
+                                            None
                                         {% endif %}
                                     </td>
                                     <td><small>Lower is better (< 10% excellent, < 20% good)</small></td>
@@ -131,7 +131,7 @@
                                         {% if weekly_metrics.rmse != None %}
                                             {{ weekly_metrics.rmse|floatformat:2 }}
                                         {% else %}
-                                            22
+                                            None
                                         {% endif %}
                                     </td>
                                     <td><small>Lower is better, measures forecast precision</small></td>
@@ -180,7 +180,7 @@
                                         {% if monthly_metrics.mape != None %}
                                             {{ monthly_metrics.mape|floatformat:2 }}%
                                         {% else %}
-                                            18
+                                            None
                                         {% endif %}
                                     </td>
                                     <td><small>Lower is better (< 10% excellent, < 20% good)</small></td>
@@ -191,7 +191,7 @@
                                         {% if monthly_metrics.rmse != None %}
                                             {{ monthly_metrics.rmse|floatformat:2 }}
                                         {% else %}
-                                            20
+                                            None
                                         {% endif %}
                                     </td>
                                     <td><small>Lower is better, measures forecast precision</small></td>

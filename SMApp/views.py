@@ -12,7 +12,6 @@ from django.db.models import Sum
 from django.db import models
 
 import json
-import pandas as pd
 import csv
 import docx
 import urllib.parse
@@ -21,14 +20,21 @@ from collections import deque
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
-from prophet import Prophet
-from prophet.diagnostics import cross_validation, performance_metrics
+import numpy as np
+import pandas as pd
+# import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  
 import matplotlib.pyplot as plt
 import io
 import base64
-# from datetime import datetime, timedelta
-import datetime
+from prophet import Prophet
+from prophet.diagnostics import cross_validation, performance_metrics
+from django.db.models import Sum
+from django.db import models
 from django.utils import timezone
+from decimal import Decimal
+import datetime
 
 
 from .forms import ItemForm
@@ -485,469 +491,10 @@ def payment_success(request):
 
 
 
-
-# analytics
-# def prepare_time_series_data(item_id=None, period='weekly'):
-#     # Query transactions, filter by item if specified
-#     queryset = Transaction.objects.all()
-#     if item_id:
-#         queryset = queryset.filter(item_id=item_id)
-    
-#     # Group by time period and sum quantities
-#     if period == 'weekly':
-#         # Extract week from timestamp and group
-#         data = queryset.annotate(
-#             week=models.functions.TruncWeek('timestamp')
-#         ).values('week').annotate(
-#             total_quantity=Sum('quantity')
-#         ).order_by('week')
-        
-#         # Convert to DataFrame
-#         df = pd.DataFrame(list(data))
-#         df.rename(columns={'week': 'ds', 'total_quantity': 'y'}, inplace=True)
-    
-#     elif period == 'monthly':
-#         # Extract month from timestamp and group
-#         data = queryset.annotate(
-#             month=models.functions.TruncMonth('timestamp')
-#         ).values('month').annotate(
-#             total_quantity=Sum('quantity')
-#         ).order_by('month')
-        
-#         # Convert to DataFrame
-#         df = pd.DataFrame(list(data))
-#         df.rename(columns={'month': 'ds', 'total_quantity': 'y'}, inplace=True)
-    
-#     return df
+# Analytics
 
 
-# def prepare_time_series_data(item_id=None, period='weekly'):
-#     # Query transactions, filter by item if specified
-#     queryset = Transaction.objects.all()
-#     if item_id:
-#         queryset = queryset.filter(item_id=item_id)
-    
-#     # Group by time period and sum quantities
-#     if period == 'weekly':
-#         # Extract week from timestamp and group
-#         data = queryset.annotate(
-#             week=models.functions.TruncWeek('timestamp')
-#         ).values('week').annotate(
-#             total_quantity=Sum('quantity')
-#         ).order_by('week')
-        
-#         # Convert to DataFrame
-#         df = pd.DataFrame(list(data))
-#         if df.empty:
-#             # Return empty DataFrame with correct columns
-#             return pd.DataFrame(columns=['ds', 'y'])
-            
-#         df.rename(columns={'week': 'ds', 'total_quantity': 'y'}, inplace=True)
-        
-#         # Remove timezone information
-#         df['ds'] = df['ds'].dt.tz_localize(None)
-    
-#     elif period == 'monthly':
-#         # Extract month from timestamp and group
-#         data = queryset.annotate(
-#             month=models.functions.TruncMonth('timestamp')
-#         ).values('month').annotate(
-#             total_quantity=Sum('quantity')
-#         ).order_by('month')
-        
-#         # Convert to DataFrame
-#         df = pd.DataFrame(list(data))
-#         if df.empty:
-#             # Return empty DataFrame with correct columns
-#             return pd.DataFrame(columns=['ds', 'y'])
-            
-#         df.rename(columns={'month': 'ds', 'total_quantity': 'y'}, inplace=True)
-        
-#         # Remove timezone information
-#         df['ds'] = df['ds'].dt.tz_localize(None)
-    
-#     return df
-
-# def forecast_with_prophet(df, periods=12, frequency='W'):
-#     # Check if DataFrame is empty or has insufficient data
-#     if df.empty or len(df) < 2:  # Prophet needs at least 2 data points
-#         # Create a blank image for the chart
-#         fig, ax = plt.subplots(figsize=(10, 6))
-#         ax.text(0.5, 0.5, 'Insufficient data for forecast', 
-#                 horizontalalignment='center', verticalalignment='center',
-#                 transform=ax.transAxes, fontsize=14)
-#         plt.close(fig)
-        
-#         # Convert plot to base64 for embedding in HTML
-#         buffer = io.BytesIO()
-#         fig.savefig(buffer, format='png')
-#         buffer.seek(0)
-#         image_png = buffer.getvalue()
-#         buffer.close()
-        
-#         graphic = base64.b64encode(image_png).decode('utf-8')
-        
-#         # Return empty forecast and the "no data" image
-#         return pd.DataFrame(columns=['ds', 'yhat', 'yhat_lower', 'yhat_upper']), graphic
-    
-#     # Initialize and train Prophet model
-#     model = Prophet(
-#         yearly_seasonality=True,
-#         weekly_seasonality=True,
-#         daily_seasonality=False,
-#         changepoint_prior_scale=0.05
-#     )
-#     model.fit(df)
-    
-#     # Create future dataframe for prediction
-#     future = model.make_future_dataframe(periods=periods, freq=frequency)
-    
-#     # Generate forecast
-#     forecast = model.predict(future)
-    
-#     # Create visualization
-#     fig = model.plot(forecast)
-#     plt.title('Sales Forecast')
-    
-#     # Convert plot to base64 for embedding in HTML
-#     buffer = io.BytesIO()
-#     fig.savefig(buffer, format='png')
-#     buffer.seek(0)
-#     image_png = buffer.getvalue()
-#     buffer.close()
-    
-#     graphic = base64.b64encode(image_png).decode('utf-8')
-    
-#     return forecast, graphic
-
-
-# def predict_stockout(item_id, forecast_df):
-#     # Check if forecast is empty
-#     if forecast_df.empty:
-#         return None
-        
-#     # Get current stock level
-#     try:
-#         item = Item.objects.get(id=item_id)
-#         current_stock = item.quantity
-        
-#         # Extract the forecasted values
-#         forecast_values = forecast_df[['ds', 'yhat']].copy()
-        
-#         # Calculate cumulative sales
-#         forecast_values['cumulative_sales'] = forecast_values['yhat'].cumsum()
-        
-#         # Find when cumulative sales exceeds current stock
-#         stockout_date = None
-#         for index, row in forecast_values.iterrows():
-#             if row['cumulative_sales'] >= current_stock:
-#                 stockout_date = row['ds']
-#                 break
-        
-#         return stockout_date
-#     except Item.DoesNotExist:
-#         return None
-
-
-# def item_analytics_view(request, item_id):
-#     # Get the item
-#     item = Item.objects.get(id=item_id)
-    
-#     # Prepare weekly data
-#     weekly_df = prepare_time_series_data(item_id=item_id, period='weekly')
-#     monthly_df = prepare_time_series_data(item_id=item_id, period='monthly')
-    
-#     # Generate forecasts
-#     weekly_forecast, weekly_chart = forecast_with_prophet(weekly_df, periods=12, frequency='W')
-#     monthly_forecast, monthly_chart = forecast_with_prophet(monthly_df, periods=6, frequency='M')
-    
-#     # Predict stockout date
-#     stockout_date = predict_stockout(item_id, weekly_forecast)
-    
-#     context = {
-#         'item': item,
-#         'weekly_chart': weekly_chart,
-#         'monthly_chart': monthly_chart,
-#         'stockout_date': stockout_date,
-#     }
-    
-#     return render(request, 'AApp/analytics/item_analytics.html', context)
-
-
-# def analytics_dashboard(request):
-#     # Get all items
-#     items = Item.objects.all()
-    
-#     # Get overall sales trend
-#     overall_df = prepare_time_series_data(period='weekly')
-#     overall_forecast, overall_chart = forecast_with_prophet(overall_df, periods=12, frequency='W')
-    
-#     # Get latest transactions for the dashboard
-#     latest_transactions = Transaction.objects.all().order_by('-timestamp')[:10]
-    
-#     # Get items that are predicted to be sold out soon
-#     items_with_stockout = []
-#     for item in items:
-#         item_df = prepare_time_series_data(item_id=item.id, period='weekly')
-#         if not item_df.empty:
-#             forecast, _ = forecast_with_prophet(item_df, periods=12, frequency='W')
-#             stockout_date = predict_stockout(item.id, forecast)
-#             if stockout_date:
-#                 # Calculate days until stockout
-#                 today = timezone.now().date()
-#                 days_until = (stockout_date.date() - today).days if hasattr(stockout_date, 'date') else None
-                
-#                 items_with_stockout.append({
-#                     'item': item,
-#                     'stockout_date': stockout_date,
-#                     'days_until': days_until
-#                 })
-    
-#     # Sort by stockout date
-#     if items_with_stockout:
-#         items_with_stockout.sort(key=lambda x: x['stockout_date'])
-    
-#     context = {
-#         'overall_chart': overall_chart,
-#         'items_with_stockout': items_with_stockout,
-#         'latest_transactions': latest_transactions,
-#         'items': items,  # Add all items for the chart
-#     }
-    
-#     return render(request, 'AApp/index.html', context)
-
-# def calculate_forecast_accuracy(actual_df, forecast_df):
-#     """
-#     Calculate various accuracy metrics for the forecast
-#     - MAPE (Mean Absolute Percentage Error)
-#     - RMSE (Root Mean Square Error)
-#     - MAE (Mean Absolute Error)
-#     """
-#     if actual_df.empty or forecast_df.empty:
-#         return {
-#             'mape': None,
-#             'rmse': None,
-#             'mae': None
-#         }
-    
-#     # Merge actual and forecasted data
-#     merged_df = pd.merge(
-#         actual_df, 
-#         forecast_df[['ds', 'yhat', 'yhat_lower', 'yhat_upper']], 
-#         on='ds', 
-#         how='inner'
-#     )
-    
-#     if merged_df.empty:
-#         return {
-#             'mape': None,
-#             'rmse': None,
-#             'mae': None
-#         }
-    
-#     # Calculate errors
-#     merged_df['error'] = merged_df['y'] - merged_df['yhat']
-#     merged_df['abs_error'] = abs(merged_df['error'])
-#     merged_df['squared_error'] = merged_df['error'] ** 2
-    
-#     # Calculate MAPE (avoiding division by zero)
-#     merged_df['abs_percent_error'] = np.where(
-#         merged_df['y'] != 0,
-#         100.0 * merged_df['abs_error'] / merged_df['y'],
-#         np.nan
-#     )
-    
-#     # Calculate metrics
-#     mape = merged_df['abs_percent_error'].dropna().mean()
-#     rmse = np.sqrt(merged_df['squared_error'].mean())
-#     mae = merged_df['abs_error'].mean()
-    
-#     return {
-#         'mape': mape,
-#         'rmse': rmse,
-#         'mae': mae,
-#         'merged_df': merged_df  # Return the merged data for additional analysis
-#     }
-
-# def forecast_with_prophet(df, periods=12, frequency='W'):
-#     # Check if DataFrame is empty or has insufficient data
-#     if df.empty or len(df) < 2:  # Prophet needs at least 2 data points
-#         # Create a blank image for the chart
-#         fig, ax = plt.subplots(figsize=(10, 6))
-#         ax.text(0.5, 0.5, 'Insufficient data for forecast', 
-#                 horizontalalignment='center', verticalalignment='center',
-#                 transform=ax.transAxes, fontsize=14)
-#         plt.close(fig)
-        
-#         # Convert plot to base64 for embedding in HTML
-#         buffer = io.BytesIO()
-#         fig.savefig(buffer, format='png')
-#         buffer.seek(0)
-#         image_png = buffer.getvalue()
-#         buffer.close()
-        
-#         graphic = base64.b64encode(image_png).decode('utf-8')
-        
-#         # Return empty forecast and the "no data" image
-#         return pd.DataFrame(columns=['ds', 'yhat', 'yhat_lower', 'yhat_upper']), graphic
-    
-#     # Split data into training and test sets (80/20)
-#     train_size = int(len(df) * 0.8)
-#     train_df = df.iloc[:train_size].copy()
-#     test_df = df.iloc[train_size:].copy() if train_size < len(df) else pd.DataFrame()
-    
-#     # Initialize and train Prophet model
-#     model = Prophet(
-#         yearly_seasonality=True,
-#         weekly_seasonality=True,
-#         daily_seasonality=False,
-#         changepoint_prior_scale=0.05
-#     )
-#     model.fit(train_df)
-    
-#     # Create future dataframe for prediction
-#     # Include both test period and future periods
-#     if test_df.empty:
-#         future = model.make_future_dataframe(periods=periods, freq=frequency)
-#     else:
-#         # Make sure we're forecasting over the test period plus additional periods
-#         test_periods = len(test_df)
-#         future = model.make_future_dataframe(periods=test_periods + periods, freq=frequency)
-    
-#     # Generate forecast
-#     forecast = model.predict(future)
-    
-#     # Calculate accuracy metrics if we have test data
-#     accuracy_metrics = None
-#     if not test_df.empty:
-#         accuracy_metrics = calculate_forecast_accuracy(test_df, forecast)
-    
-#     # Create visualization with metrics
-#     fig = model.plot(forecast)
-#     ax = fig.gca()
-    
-#     # Add metrics to the plot if available
-#     if accuracy_metrics and accuracy_metrics['mape'] is not None:
-#         metrics_text = (
-#             f"MAPE: {accuracy_metrics['mape']:.2f}%\n"
-#             f"RMSE: {accuracy_metrics['rmse']:.2f}\n"
-#             f"MAE: {accuracy_metrics['mae']:.2f}"
-#         )
-#         plt.figtext(0.01, 0.01, metrics_text, fontsize=10)
-    
-#     plt.title('Sales Forecast with Accuracy Metrics')
-    
-#     # Convert plot to base64 for embedding in HTML
-#     buffer = io.BytesIO()
-#     fig.savefig(buffer, format='png')
-#     buffer.seek(0)
-#     image_png = buffer.getvalue()
-#     buffer.close()
-    
-#     graphic = base64.b64encode(image_png).decode('utf-8')
-    
-#     return forecast, graphic, accuracy_metrics
-
-
-def prepare_time_series_data(item_id=None, period='weekly'):
-    # Query transactions, filter by item if specified
-    queryset = Transaction.objects.all()
-    if item_id:
-        queryset = queryset.filter(item_id=item_id)
-    
-    # Group by time period and sum quantities
-    if period == 'weekly':
-        # Extract week from timestamp and group
-        data = queryset.annotate(
-            week=models.functions.TruncWeek('timestamp')
-        ).values('week').annotate(
-            total_quantity=Sum('quantity')
-        ).order_by('week')
-        
-        # Convert to DataFrame
-        df = pd.DataFrame(list(data))
-        if df.empty:
-            # Return empty DataFrame with correct columns
-            return pd.DataFrame(columns=['ds', 'y'])
-            
-        df.rename(columns={'week': 'ds', 'total_quantity': 'y'}, inplace=True)
-        
-        # Remove timezone information
-        df['ds'] = df['ds'].dt.tz_localize(None)
-    
-    elif period == 'monthly':
-        # Extract month from timestamp and group
-        data = queryset.annotate(
-            month=models.functions.TruncMonth('timestamp')
-        ).values('month').annotate(
-            total_quantity=Sum('quantity')
-        ).order_by('month')
-        
-        # Convert to DataFrame
-        df = pd.DataFrame(list(data))
-        if df.empty:
-            # Return empty DataFrame with correct columns
-            return pd.DataFrame(columns=['ds', 'y'])
-            
-        df.rename(columns={'month': 'ds', 'total_quantity': 'y'}, inplace=True)
-        
-        # Remove timezone information
-        df['ds'] = df['ds'].dt.tz_localize(None)
-    
-    return df
-
-def calculate_forecast_accuracy(actual_df, forecast_df):
-    """
-    Calculate various accuracy metrics for the forecast
-    - MAPE (Mean Absolute Percentage Error)
-    - RMSE (Root Mean Square Error)
-    - MAE (Mean Absolute Error)
-    """
-    if actual_df.empty or forecast_df.empty:
-        return {
-            'mape': None,
-            'rmse': None,
-            'mae': None
-        }
-    
-    # Merge actual and forecasted data
-    merged_df = pd.merge(
-        actual_df, 
-        forecast_df[['ds', 'yhat', 'yhat_lower', 'yhat_upper']], 
-        on='ds', 
-        how='inner'
-    )
-    
-    if merged_df.empty:
-        return {
-            'mape': None,
-            'rmse': None,
-            'mae': None
-        }
-    
-    # Calculate errors
-    merged_df['error'] = merged_df['y'] - merged_df['yhat']
-    merged_df['abs_error'] = abs(merged_df['error'])
-    merged_df['squared_error'] = merged_df['error'] ** 2
-    
-    # Calculate MAPE (avoiding division by zero)
-    merged_df['abs_percent_error'] = np.where(
-        merged_df['y'] != 0,
-        100.0 * merged_df['abs_error'] / merged_df['y'],
-        np.nan
-    )
-    
-    # Calculate metrics
-    mape = float(merged_df['abs_percent_error'].dropna().mean())
-    rmse = float(np.sqrt(merged_df['squared_error'].mean()))
-    mae = float(merged_df['abs_error'].mean())
-    
-    # Return metrics as plain Python types, not numpy types
-    return {
-        'mape': mape,
-        'rmse': rmse,
-        'mae': mae
-    }
+# -----------------------
 
 def calculate_item_performance_metrics(item_id=None, period='monthly', months=6):
     end_date = timezone.now().date()
@@ -1000,97 +547,659 @@ def calculate_item_performance_metrics(item_id=None, period='monthly', months=6)
         'current_stock': current_stock
     }
 
+# ----------
 
-def forecast_with_prophet(df, periods=12, frequency='W'):
-    # Check if DataFrame is empty or has insufficient data
-    if df.empty or len(df) < 2:  # Prophet needs at least 2 data points
-        # Create a blank image for the chart
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.text(0.5, 0.5, 'Insufficient data for forecast', 
-                horizontalalignment='center', verticalalignment='center',
-                transform=ax.transAxes, fontsize=14)
-        plt.close(fig)
+def analytics_dashboard(request):
+    """
+    Improved analytics dashboard with better error handling and data validation
+    """
+    # Get all items
+    items = Item.objects.all()
+    
+    # Get overall sales trend with better error handling
+    try:
+        overall_df = prepare_time_series_data(period='weekly')
+        print(f"Overall data shape: {overall_df.shape}")
+        print(f"Overall data sample:\n{overall_df.head()}")
         
-        # Convert plot to base64 for embedding in HTML
-        buffer = io.BytesIO()
-        fig.savefig(buffer, format='png')
-        buffer.seek(0)
-        image_png = buffer.getvalue()
-        buffer.close()
-        
-        graphic = base64.b64encode(image_png).decode('utf-8')
-        
-        # Return empty forecast and the "no data" image
-        return pd.DataFrame(columns=['ds', 'yhat', 'yhat_lower', 'yhat_upper']), graphic, None
+        if len(overall_df) >= 3:
+            overall_forecast, overall_chart, overall_metrics = forecast_with_prophet(
+                overall_df, periods=12, frequency='W'
+            )
+        else:
+            print("Insufficient overall data for forecasting")
+            overall_forecast = pd.DataFrame()
+            overall_chart = None
+            overall_metrics = None
+    except Exception as e:
+        print(f"Error in overall forecasting: {str(e)}")
+        overall_forecast = pd.DataFrame()
+        overall_chart = None
+        overall_metrics = None
     
-    # Split data into training and test sets (80/20)
-    train_size = int(len(df) * 0.8)
-    train_df = df.iloc[:train_size].copy()
-    test_df = df.iloc[train_size:].copy() if train_size < len(df) else pd.DataFrame()
-    
-    # Initialize and train Prophet model
-    model = Prophet(
-        yearly_seasonality=True,
-        weekly_seasonality=True,
-        daily_seasonality=False,
-        changepoint_prior_scale=0.05
-    )
-    model.fit(train_df)
-    
-    # Create future dataframe for prediction
-    # Include both test period and future periods
-    if test_df.empty:
-        future = model.make_future_dataframe(periods=periods, freq=frequency)
-    else:
-        # Make sure we're forecasting over the test period plus additional periods
-        test_periods = len(test_df)
-        future = model.make_future_dataframe(periods=test_periods + periods, freq=frequency)
-    
-    # Generate forecast
-    forecast = model.predict(future)
-    
-    # Calculate accuracy metrics if we have test data
-    accuracy_metrics = None
-    if not test_df.empty:
-        accuracy_metrics = calculate_forecast_accuracy(test_df, forecast)
-    
-    # Extract just the numeric metrics for template rendering
-    template_metrics = None
-    if accuracy_metrics and accuracy_metrics.get('mape') is not None:
-        template_metrics = {
-            'mape': float(accuracy_metrics['mape']) if accuracy_metrics['mape'] is not None else None,
-            'rmse': float(accuracy_metrics['rmse']) if accuracy_metrics['rmse'] is not None else None,
-            'mae': float(accuracy_metrics['mae']) if accuracy_metrics['mae'] is not None else None
+    # Calculate overall performance metrics
+    try:
+        overall_performance = calculate_item_performance_metrics(period='monthly')
+    except Exception as e:
+        print(f"Error calculating overall performance: {str(e)}")
+        overall_performance = {
+            'sales_velocity_daily': 0,
+            'sales_velocity_weekly': 0,
+            'sales_velocity_monthly': 0,
+            'days_of_supply': None,
+            'inventory_turnover': None,
+            'total_sales_period': 0,
+            'current_stock': 0
         }
     
-    # Create visualization with metrics
-    fig = model.plot(forecast)
-    ax = fig.gca()
+    # Get latest transactions for the dashboard
+    latest_transactions = Transaction.objects.all().order_by('-timestamp')[:10]
     
-    # Add metrics to the plot if available
-    if template_metrics:
-        metrics_text = (
-            f"MAPE: {template_metrics['mape']:.2f}%\n"
-            f"RMSE: {template_metrics['rmse']:.2f}\n"
-            f"MAE: {template_metrics['mae']:.2f}"
-        )
-        plt.figtext(0.01, 0.01, metrics_text, fontsize=10)
+    # Initialize lists for stockout predictions and performance metrics
+    items_with_stockout = []
+    items_performance = []
     
-    plt.title('Sales Forecast with Accuracy Metrics')
+    # Process each item with better error handling
+    for item in items:
+        try:
+            # Get item performance metrics 
+            item_metrics = calculate_item_performance_metrics(item_id=item.id)
+            
+            # Add performance metrics to list
+            items_performance.append({
+                'item': item,
+                'metrics': item_metrics
+            })
+            
+            # Get forecasting data for stockout prediction
+            item_df = prepare_time_series_data(item_id=item.id, period='weekly')
+            
+            if len(item_df) >= 3:  # Only forecast if we have sufficient data
+                forecast, _, _ = forecast_with_prophet(item_df, periods=12, frequency='W')
+                stockout_date = predict_stockout(item.id, forecast)
+                
+                if stockout_date:
+                    # Calculate days until stockout
+                    today = timezone.now().date()
+                    if hasattr(stockout_date, 'date'):
+                        days_until = (stockout_date.date() - today).days
+                    else:
+                        days_until = (stockout_date - today).days if isinstance(stockout_date, datetime.date) else None
+                    
+                    items_with_stockout.append({
+                        'item': item,
+                        'stockout_date': stockout_date,
+                        'days_until': days_until
+                    })
+                    
+        except Exception as e:
+            print(f"Error processing item {item.id} ({item.name}): {str(e)}")
+            # Add item with default metrics
+            items_performance.append({
+                'item': item,
+                'metrics': {
+                    'sales_velocity_daily': 0,
+                    'sales_velocity_weekly': 0,
+                    'sales_velocity_monthly': 0,
+                    'days_of_supply': None,
+                    'inventory_turnover': None,
+                    'total_sales_period': 0,
+                    'current_stock': item.quantity
+                }
+            })
     
-    # Convert plot to base64 for embedding in HTML
+    # Sort by stockout date (soonest first)
+    if items_with_stockout:
+        items_with_stockout.sort(key=lambda x: x['stockout_date'] if x['stockout_date'] else datetime.date.max)
+    
+    # Sort items by inventory turnover (highest first)
+    items_performance.sort(
+        key=lambda x: x['metrics']['inventory_turnover'] if x['metrics']['inventory_turnover'] is not None else 0, 
+        reverse=True
+    )
+    
+    # Prepare context with all data
+    context = {
+        'overall_chart': overall_chart,
+        'overall_metrics': overall_metrics,
+        'overall_performance': overall_performance,
+        'items_with_stockout': items_with_stockout[:10],  # Limit to top 10
+        'items_performance': items_performance[:20],      # Limit to top 20
+        'latest_transactions': latest_transactions,
+        'items': items,
+        'total_items': items.count(),
+        'low_stock_items': items.filter(quantity__lt=10).count(),  # Items with less than 10 units
+    }
+    
+    return render(request, 'AApp/index.html', context)
+
+def item_analytics_view(request, item_id):
+    """
+    Improved item analytics view with better error handling
+    """
+    try:
+        # Get the item
+        item = Item.objects.get(id=item_id)
+        
+        # Prepare time series data
+        weekly_df = prepare_time_series_data(item_id=item_id, period='weekly')
+        monthly_df = prepare_time_series_data(item_id=item_id, period='monthly')
+        
+        print(f"Item {item.name} - Weekly data shape: {weekly_df.shape}")
+        print(f"Item {item.name} - Monthly data shape: {monthly_df.shape}")
+        
+        # Generate forecasts with error handling
+        weekly_forecast = pd.DataFrame()
+        weekly_chart = None
+        weekly_metrics = None
+        
+        if len(weekly_df) >= 3:
+            try:
+                weekly_forecast, weekly_chart, weekly_metrics = forecast_with_prophet(
+                    weekly_df, periods=12, frequency='W'
+                )
+            except Exception as e:
+                print(f"Error in weekly forecast for item {item.name}: {str(e)}")
+        
+        monthly_forecast = pd.DataFrame()
+        monthly_chart = None
+        monthly_metrics = None
+        
+        if len(monthly_df) >= 3:
+            try:
+                monthly_forecast, monthly_chart, monthly_metrics = forecast_with_prophet(
+                    monthly_df, periods=6, frequency='M'
+                )
+            except Exception as e:
+                print(f"Error in monthly forecast for item {item.name}: {str(e)}")
+        
+        # Calculate performance metrics
+        try:
+            performance_metrics = calculate_item_performance_metrics(item_id=item_id)
+        except Exception as e:
+            print(f"Error calculating performance metrics for item {item.name}: {str(e)}")
+            performance_metrics = {
+                'sales_velocity_daily': 0,
+                'sales_velocity_weekly': 0,
+                'sales_velocity_monthly': 0,
+                'days_of_supply': None,
+                'inventory_turnover': None,
+                'total_sales_period': 0,
+                'current_stock': item.quantity
+            }
+        
+        # Predict stockout date
+        stockout_date = None
+        if not weekly_forecast.empty:
+            try:
+                stockout_date = predict_stockout(item_id, weekly_forecast)
+            except Exception as e:
+                print(f"Error predicting stockout for item {item.name}: {str(e)}")
+        
+        context = {
+            'item': item,
+            'weekly_chart': weekly_chart,
+            'monthly_chart': monthly_chart,
+            'stockout_date': stockout_date,
+            'weekly_metrics': weekly_metrics,
+            'monthly_metrics': monthly_metrics,
+            'performance_metrics': performance_metrics,
+            'weekly_data_points': len(weekly_df),
+            'monthly_data_points': len(monthly_df),
+        }
+        
+        return render(request, 'AApp/analytics/item_analytics.html', context)
+        
+    except Item.DoesNotExist:
+        messages.error(request, f'Item with ID {item_id} does not exist.')
+        return redirect('items-list')
+    except Exception as e:
+        messages.error(request, f'Error loading analytics: {str(e)}')
+        return redirect('items-list')
+
+def debug_forecast_data(request):
+    """
+    Debug view to check the quality of your forecasting data
+    """
+    if not request.user.is_superuser:
+        return HttpResponse("Access denied", status=403)
+    
+    debug_info = []
+    
+    # Check overall data
+    overall_df = prepare_time_series_data(period='weekly')
+    debug_info.append(f"Overall weekly data: {len(overall_df)} points")
+    if not overall_df.empty:
+        debug_info.append(f"Date range: {overall_df['ds'].min()} to {overall_df['ds'].max()}")
+        debug_info.append(f"Value range: {overall_df['y'].min()} to {overall_df['y'].max()}")
+        debug_info.append(f"Mean: {overall_df['y'].mean():.2f}, Std: {overall_df['y'].std():.2f}")
+    
+    debug_info.append("\n" + "="*50 + "\n")
+    
+    # Check individual items
+    items = Item.objects.all()[:5]  # Check first 5 items
+    for item in items:
+        item_df = prepare_time_series_data(item_id=item.id, period='weekly')
+        debug_info.append(f"Item '{item.name}': {len(item_df)} data points")
+        if not item_df.empty:
+            debug_info.append(f"  Date range: {item_df['ds'].min()} to {item_df['ds'].max()}")
+            debug_info.append(f"  Value range: {item_df['y'].min()} to {item_df['y'].max()}")
+            debug_info.append(f"  Total sales: {item_df['y'].sum()}")
+    
+    # Check recent transactions
+    recent_transactions = Transaction.objects.all().order_by('-timestamp')[:10]
+    debug_info.append(f"\nRecent transactions: {len(recent_transactions)}")
+    for txn in recent_transactions:
+        debug_info.append(f"  {txn.timestamp.strftime('%Y-%m-%d')}: {txn.item_name} x{txn.quantity}")
+    
+    return HttpResponse("<pre>" + "\n".join(debug_info) + "</pre>")
+
+def clean_time_series_data(df):
+    """
+    Clean time series data by removing outliers and ensuring data quality
+    """
+    if df.empty or len(df) < 2:
+        return df
+    
+    # Remove negative values
+    df = df[df['y'] >= 0].copy()
+    
+    # Remove extreme outliers (values > 3 standard deviations from mean)
+    if len(df) > 3:
+        mean_val = df['y'].mean()
+        std_val = df['y'].std()
+        if std_val > 0:  # Avoid division by zero
+            df = df[abs(df['y'] - mean_val) <= 3 * std_val].copy()
+    
+    # Ensure we still have enough data points
+    if len(df) < 2:
+        return pd.DataFrame(columns=['ds', 'y'])
+    
+    return df
+
+def calculate_forecast_accuracy(actual_df, forecast_df):
+    """
+    Calculate various accuracy metrics for the forecast
+    """
+    if actual_df.empty or forecast_df.empty:
+        return {'mape': None, 'rmse': None, 'mae': None}
+    
+    # Merge actual and forecasted data
+    merged_df = pd.merge(
+        actual_df, 
+        forecast_df[['ds', 'yhat', 'yhat_lower', 'yhat_upper']], 
+        on='ds', 
+        how='inner'
+    )
+    
+    if merged_df.empty:
+        return {'mape': None, 'rmse': None, 'mae': None}
+    
+    # Calculate errors
+    merged_df['error'] = merged_df['y'] - merged_df['yhat']
+    merged_df['abs_error'] = abs(merged_df['error'])
+    merged_df['squared_error'] = merged_df['error'] ** 2
+    
+    # Calculate MAPE (avoiding division by zero)
+    merged_df['abs_percent_error'] = np.where(
+        merged_df['y'] != 0,
+        100.0 * merged_df['abs_error'] / merged_df['y'],
+        np.nan
+    )
+    
+    # Calculate metrics
+    mape = float(merged_df['abs_percent_error'].dropna().mean()) if not merged_df['abs_percent_error'].dropna().empty else None
+    rmse = float(np.sqrt(merged_df['squared_error'].mean())) if not merged_df.empty else None
+    mae = float(merged_df['abs_error'].mean()) if not merged_df.empty else None
+    
+    return {'mape': mape, 'rmse': rmse, 'mae': mae}
+
+def create_no_data_chart():
+    """Create a chart for insufficient data scenario"""
+    fig, ax = plt.subplots(figsize=(12, 8))
+    ax.text(0.5, 0.5, 'Insufficient data for forecast\n(Need at least 3 data points)', 
+            horizontalalignment='center', verticalalignment='center',
+            transform=ax.transAxes, fontsize=16, 
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray"))
+    ax.set_title('Sales Forecast - Insufficient Data', fontsize=16, fontweight='bold')
+    plt.tight_layout()
+    
     buffer = io.BytesIO()
-    fig.savefig(buffer, format='png')
+    fig.savefig(buffer, format='png', dpi=100, bbox_inches='tight')
     buffer.seek(0)
     image_png = buffer.getvalue()
     buffer.close()
+    plt.close(fig)
+    
+    graphic = base64.b64encode(image_png).decode('utf-8')
+    return pd.DataFrame(columns=['ds', 'yhat', 'yhat_lower', 'yhat_upper']), graphic, None
+
+def create_flat_forecast_chart(df, periods, frequency):
+    """Create a forecast chart for flat/constant data"""
+    fig, ax = plt.subplots(figsize=(12, 8))
+    
+    # Plot historical data
+    ax.plot(df['ds'], df['y'], 'ko-', label='Historical Data', linewidth=2, markersize=6)
+    
+    # Create simple flat forecast
+    last_date = df['ds'].max()
+    avg_value = df['y'].mean()
+    
+    if frequency == 'W':
+        future_dates = pd.date_range(start=last_date + pd.Timedelta(weeks=1), 
+                                   periods=periods, freq='W')
+    else:
+        future_dates = pd.date_range(start=last_date + pd.DateOffset(months=1), 
+                                   periods=periods, freq='MS')
+    
+    # Plot forecast as horizontal line
+    ax.plot(future_dates, [avg_value] * periods, 'b--', 
+            label='Forecast (Flat Trend)', linewidth=2)
+    
+    ax.set_xlabel('Date', fontsize=12)
+    ax.set_ylabel('Sales Quantity', fontsize=12)
+    ax.set_title('Sales Forecast - Constant Trend', fontsize=16, fontweight='bold')
+    ax.legend(fontsize=12)
+    ax.grid(True, alpha=0.3)
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format='png', dpi=100, bbox_inches='tight')
+    buffer.seek(0)
+    image_png = buffer.getvalue()
+    buffer.close()
+    plt.close(fig)
     
     graphic = base64.b64encode(image_png).decode('utf-8')
     
-    return forecast, graphic, template_metrics
+    # Create simple forecast dataframe
+    forecast_df = pd.DataFrame({
+        'ds': future_dates,
+        'yhat': [avg_value] * periods,
+        'yhat_lower': [max(0, avg_value * 0.8)] * periods,
+        'yhat_upper': [avg_value * 1.2] * periods
+    })
+    
+    return forecast_df, graphic, None
+
+def create_forecast_chart(model, forecast, df, accuracy_metrics):
+    """Create an enhanced forecast visualization"""
+    fig = plt.figure(figsize=(14, 10))
+    
+    # Main forecast plot
+    ax1 = plt.subplot(2, 1, 1)
+    model.plot(forecast, ax=ax1)
+    ax1.set_title('Sales Forecast with Confidence Intervals', fontsize=16, fontweight='bold')
+    ax1.set_xlabel('Date', fontsize=12)
+    ax1.set_ylabel('Sales Quantity', fontsize=12)
+    ax1.grid(True, alpha=0.3)
+    
+    # Add accuracy metrics if available
+    if accuracy_metrics and accuracy_metrics.get('mape') is not None:
+        metrics_text = (
+            f"Model Accuracy Metrics:\n"
+            f"MAPE: {accuracy_metrics['mape']:.1f}%\n"
+            f"RMSE: {accuracy_metrics['rmse']:.1f}\n"
+            f"MAE: {accuracy_metrics['mae']:.1f}"
+        )
+        ax1.text(0.02, 0.98, metrics_text, transform=ax1.transAxes, 
+                fontsize=10, verticalalignment='top',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.8))
+    
+    # Components plot (if model has components)
+    try:
+        ax2 = plt.subplot(2, 1, 2)
+        components = model.predict(model.history)
+        ax2.plot(components['ds'], components['trend'], label='Trend', linewidth=2)
+        if 'yearly' in components.columns:
+            ax2.plot(components['ds'], components['yearly'], label='Yearly Seasonality', alpha=0.7)
+        if 'monthly' in components.columns:
+            ax2.plot(components['ds'], components['monthly'], label='Monthly Seasonality', alpha=0.7)
+        ax2.set_title('Forecast Components', fontsize=14, fontweight='bold')
+        ax2.set_xlabel('Date', fontsize=12)
+        ax2.set_ylabel('Component Value', fontsize=12)
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+    except:
+        # If components plot fails, just use a simple summary
+        ax2 = plt.subplot(2, 1, 2)
+        ax2.text(0.5, 0.5, f'Historical Data Points: {len(df)}\nForecast Points: {len(forecast)}', 
+                horizontalalignment='center', verticalalignment='center',
+                transform=ax2.transAxes, fontsize=14)
+        ax2.set_title('Forecast Summary', fontsize=14, fontweight='bold')
+    
+    plt.tight_layout()
+    
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format='png', dpi=100, bbox_inches='tight')
+    buffer.seek(0)
+    image_png = buffer.getvalue()
+    buffer.close()
+    plt.close(fig)
+    
+    return base64.b64encode(image_png).decode('utf-8')
+
+def create_error_chart(error_message):
+    """Create a chart showing error information"""
+    fig, ax = plt.subplots(figsize=(12, 8))
+    ax.text(0.5, 0.5, f'Forecasting Error:\n{error_message}', 
+            horizontalalignment='center', verticalalignment='center',
+            transform=ax.transAxes, fontsize=14, 
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="lightcoral"))
+    ax.set_title('Sales Forecast - Error', fontsize=16, fontweight='bold')
+    plt.tight_layout()
+    
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format='png', dpi=100, bbox_inches='tight')
+    buffer.seek(0)
+    image_png = buffer.getvalue()
+    buffer.close()
+    plt.close(fig)
+    
+    graphic = base64.b64encode(image_png).decode('utf-8')
+    return pd.DataFrame(columns=['ds', 'yhat', 'yhat_lower', 'yhat_upper']), graphic, None
 
 
+# ------------------
+
+# def forecast_with_prophet(df, periods=12, frequency='W'):
+#     """
+#     Improved Prophet forecasting with better accuracy calculation
+#     """
+#     # Check if DataFrame is empty or has insufficient data
+#     if df.empty or len(df) < 3:
+#         return create_no_data_chart()
+    
+#     # Check for sufficient variability in the data
+#     if df['y'].std() == 0:
+#         return create_flat_forecast_chart(df, periods, frequency)
+    
+#     # Configure Prophet model (same as your existing code)
+#     model_params = {
+#         'changepoint_prior_scale': 0.05,
+#         'seasonality_prior_scale': 10.0,
+#         'holidays_prior_scale': 10.0,
+#         'seasonality_mode': 'additive',
+#         'interval_width': 0.80,
+#         'mcmc_samples': 0,
+#     }
+    
+#     # Adjust seasonality based on frequency and data length
+#     if frequency == 'W':
+#         model_params.update({
+#             'yearly_seasonality': len(df) >= 52,
+#             'weekly_seasonality': False,
+#             'daily_seasonality': False,
+#         })
+#         if len(df) >= 8:
+#             model_params['yearly_seasonality'] = False
+#     elif frequency == 'M':
+#         model_params.update({
+#             'yearly_seasonality': len(df) >= 24,
+#             'weekly_seasonality': False,
+#             'daily_seasonality': False,
+#         })
+    
+#     try:
+#         # Initialize and train Prophet model
+#         model = Prophet(**model_params)
+        
+#         # Add custom seasonalities if we have enough data
+#         if frequency == 'W' and len(df) >= 8:
+#             model.add_seasonality(name='monthly', period=30.5/7, fourier_order=5)
+        
+#         # Fit model on all historical data
+#         model.fit(df)
+        
+#         # Create future dataframe for prediction
+#         future = model.make_future_dataframe(periods=periods, freq=frequency)
+        
+#         # Generate forecast
+#         forecast = model.predict(future)
+        
+#         # Ensure forecasted values are non-negative
+#         forecast['yhat'] = forecast['yhat'].clip(lower=0)
+#         forecast['yhat_lower'] = forecast['yhat_lower'].clip(lower=0)
+#         forecast['yhat_upper'] = forecast['yhat_upper'].clip(lower=0)
+        
+#         # Calculate accuracy metrics on historical period
+#         accuracy_metrics = calculate_in_sample_accuracy(df, forecast)
+        
+#         # Create visualization
+#         graphic = create_forecast_chart(model, forecast, df, accuracy_metrics)
+        
+#         return forecast, graphic, accuracy_metrics
+        
+#     except Exception as e:
+#         print(f"Error in Prophet forecasting: {str(e)}")
+#         return create_error_chart(str(e))
+
+def calculate_in_sample_accuracy(actual_df, forecast_df):
+    """
+    Calculate accuracy metrics using in-sample (fitted values) comparison
+    """
+    if actual_df.empty or forecast_df.empty:
+        return {'mape': None, 'rmse': None, 'mae': None}
+    
+    # Get only the historical period from forecast
+    historical_forecast = forecast_df[
+        forecast_df['ds'].isin(actual_df['ds'])
+    ].copy()
+    
+    if historical_forecast.empty:
+        # Try approximate matching if exact dates don't match
+        return calculate_approximate_accuracy(actual_df, forecast_df)
+    
+    # Merge actual and forecasted data
+    merged_df = pd.merge(
+        actual_df, 
+        historical_forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']], 
+        on='ds', 
+        how='inner'
+    )
+    
+    if merged_df.empty or len(merged_df) < 2:
+        return {'mape': None, 'rmse': None, 'mae': None}
+    
+    # Calculate errors
+    merged_df['error'] = merged_df['y'] - merged_df['yhat']
+    merged_df['abs_error'] = abs(merged_df['error'])
+    merged_df['squared_error'] = merged_df['error'] ** 2
+    
+    # Calculate MAPE (avoiding division by zero)
+    merged_df['abs_percent_error'] = np.where(
+        merged_df['y'] != 0,
+        100.0 * merged_df['abs_error'] / merged_df['y'],
+        np.nan
+    )
+    
+    # Calculate metrics
+    valid_mape = merged_df['abs_percent_error'].dropna()
+    mape = float(valid_mape.mean()) if len(valid_mape) > 0 else None
+    rmse = float(np.sqrt(merged_df['squared_error'].mean()))
+    mae = float(merged_df['abs_error'].mean())
+    
+    return {'mape': mape, 'rmse': rmse, 'mae': mae}
+
+def calculate_approximate_accuracy(actual_df, forecast_df):
+    """
+    Calculate accuracy with approximate date matching for misaligned dates
+    """
+    if len(actual_df) != len(forecast_df[:len(actual_df)]):
+        return {'mape': None, 'rmse': None, 'mae': None}
+    
+    # Take first N forecast points where N = length of actual data
+    forecast_subset = forecast_df.head(len(actual_df)).copy()
+    
+    # Calculate errors using positional matching
+    errors = actual_df['y'].values - forecast_subset['yhat'].values
+    abs_errors = np.abs(errors)
+    squared_errors = errors ** 2
+    
+    # Calculate MAPE
+    valid_actuals = actual_df['y'].values[actual_df['y'].values != 0]
+    valid_forecast = forecast_subset['yhat'].values[actual_df['y'].values != 0]
+    
+    if len(valid_actuals) > 0:
+        mape = float(100.0 * np.mean(np.abs(valid_actuals - valid_forecast) / valid_actuals))
+    else:
+        mape = None
+    
+    rmse = float(np.sqrt(np.mean(squared_errors)))
+    mae = float(np.mean(abs_errors))
+    
+    return {'mape': mape, 'rmse': rmse, 'mae': mae}
+
+def debug_accuracy_calculation(item_id=None):
+    """
+    Debug function to check why accuracy metrics are None
+    """
+    print("=== DEBUG: Accuracy Calculation ===")
+    
+    # Get data
+    weekly_df = prepare_time_series_data(item_id=item_id, period='weekly')
+    print(f"Weekly data shape: {weekly_df.shape}")
+    print(f"Weekly data:\n{weekly_df.head()}")
+    
+    if len(weekly_df) >= 3:
+        try:
+            # Try forecasting
+            model = Prophet(
+                changepoint_prior_scale=0.05,
+                seasonality_prior_scale=10.0,
+                yearly_seasonality=False,
+                weekly_seasonality=False,
+                daily_seasonality=False
+            )
+            model.fit(weekly_df)
+            
+            future = model.make_future_dataframe(periods=12, freq='W')
+            forecast = model.predict(future)
+            
+            print(f"Forecast shape: {forecast.shape}")
+            print(f"Historical forecast dates: {forecast['ds'][:len(weekly_df)].tolist()}")
+            print(f"Actual dates: {weekly_df['ds'].tolist()}")
+            
+            # Check date alignment
+            common_dates = set(weekly_df['ds']).intersection(set(forecast['ds']))
+            print(f"Common dates: {len(common_dates)}")
+            
+            # Try accuracy calculation
+            accuracy = calculate_in_sample_accuracy(weekly_df, forecast)
+            print(f"Accuracy metrics: {accuracy}")
+            
+        except Exception as e:
+            print(f"Error in debug: {str(e)}")
+    
+    return weekly_df
+
+
+# --------------
 def predict_stockout(item_id, forecast_df):
+    """
+    Fixed stockout prediction - calculates when stock will run out
+    """
     # Check if forecast is empty
     if forecast_df.empty:
         return None
@@ -1100,121 +1209,334 @@ def predict_stockout(item_id, forecast_df):
         item = Item.objects.get(id=item_id)
         current_stock = item.quantity
         
-        # Extract the forecasted values
-        forecast_values = forecast_df[['ds', 'yhat']].copy()
+        # Extract only future forecast values (not historical fitted values)
+        today = timezone.now().date()
+        future_forecast = forecast_df[forecast_df['ds'].dt.date > today].copy()
         
-        # Calculate cumulative sales
-        forecast_values['cumulative_sales'] = forecast_values['yhat'].cumsum()
+        if future_forecast.empty:
+            return None
         
-        # Find when cumulative sales exceeds current stock
+        # Sort by date to ensure proper order
+        future_forecast = future_forecast.sort_values('ds').reset_index(drop=True)
+        
+        # Calculate running stock depletion
+        running_stock = current_stock
         stockout_date = None
-        for index, row in forecast_values.iterrows():
-            if row['cumulative_sales'] >= current_stock:
+        
+        for index, row in future_forecast.iterrows():
+            # Subtract forecasted sales from running stock
+            predicted_sales = max(0, row['yhat'])  # Ensure non-negative
+            running_stock -= predicted_sales
+            
+            # Check if stock runs out
+            if running_stock <= 0:
                 stockout_date = row['ds']
                 break
         
         return stockout_date
+        
     except Item.DoesNotExist:
         return None
 
-def item_analytics_view(request, item_id):
-    # Get the item
-    item = Item.objects.get(id=item_id)
-    
-    # Prepare weekly data
-    weekly_df = prepare_time_series_data(item_id=item_id, period='weekly')
-    monthly_df = prepare_time_series_data(item_id=item_id, period='monthly')
-    
-    # Generate forecasts with accuracy metrics
-    weekly_forecast, weekly_chart, weekly_metrics = forecast_with_prophet(weekly_df, periods=12, frequency='W')
-    monthly_forecast, monthly_chart, monthly_metrics = forecast_with_prophet(monthly_df, periods=6, frequency='M')
-    
-    # Calculate performance metrics
-    performance_metrics = calculate_item_performance_metrics(item_id=item_id)
-    
-    # Predict stockout date
-    stockout_date = predict_stockout(item_id, weekly_forecast)
-    
-    context = {
-        'item': item,
-        'weekly_chart': weekly_chart,
-        'monthly_chart': monthly_chart,
-        'stockout_date': stockout_date,
-        'weekly_metrics': weekly_metrics,
-        'monthly_metrics': monthly_metrics,
-        'performance_metrics': performance_metrics,
-    }
-    
-    return render(request, 'AApp/analytics/item_analytics.html', context)
 
-def analytics_dashboard(request):
-    # Get all items
-    items = Item.objects.all()
+def forecast_with_prophet(df, periods=12, frequency='W'):
+    """
+    Improved Prophet forecasting with better parameter tuning for retail data
+    """
+    # Check if DataFrame is empty or has insufficient data
+    if df.empty or len(df) < 3:
+        return create_no_data_chart()
     
-    # Get overall sales trend
-    overall_df = prepare_time_series_data(period='weekly')
-    overall_forecast, overall_chart, overall_metrics = forecast_with_prophet(overall_df, periods=12, frequency='W')
+    # Check for sufficient variability in the data
+    if df['y'].std() == 0:
+        return create_flat_forecast_chart(df, periods, frequency)
     
-    # Calculate overall performance metrics
-    overall_performance = calculate_item_performance_metrics(period='monthly')
+    # Enhanced data preprocessing
+    df_processed = df.copy()
     
-    # Get latest transactions for the dashboard
-    latest_transactions = Transaction.objects.all().order_by('-timestamp')[:10]
+    # Remove extreme outliers more conservatively for weekly data
+    if len(df_processed) > 4:
+        Q1 = df_processed['y'].quantile(0.25)
+        Q3 = df_processed['y'].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = max(0, Q1 - 1.5 * IQR)  # More conservative outlier removal
+        upper_bound = Q3 + 2.0 * IQR  # Allow higher upper bound for sales spikes
+        df_processed = df_processed[
+            (df_processed['y'] >= lower_bound) & (df_processed['y'] <= upper_bound)
+        ]
     
-    # Get items that are predicted to be sold out soon
-    items_with_stockout = []
-    items_performance = []
+    # If we removed too much data, use original
+    if len(df_processed) < 3:
+        df_processed = df.copy()
     
-    for item in items:
-        item_df = prepare_time_series_data(item_id=item.id, period='weekly')
+    # Configure Prophet with more conservative parameters for weekly data
+    if frequency == 'W':
+        model_params = {
+            'changepoint_prior_scale': 0.01,    # Much more conservative for weekly
+            'seasonality_prior_scale': 1.0,     # Reduced seasonality flexibility
+            'holidays_prior_scale': 1.0,
+            'seasonality_mode': 'additive',
+            'interval_width': 0.80,
+            'mcmc_samples': 0,
+            'yearly_seasonality': False,        # Disable yearly for weekly
+            'weekly_seasonality': False,        # Disable weekly seasonality for weekly aggregated data
+            'daily_seasonality': False,
+        }
         
-        # Get item performance metrics 
-        item_metrics = calculate_item_performance_metrics(item_id=item.id)
+        # Only add monthly pattern if we have enough data
+        add_monthly_seasonality = len(df_processed) >= 12  # At least 3 months
         
-        # Add performance metrics to list
-        items_performance.append({
-            'item': item,
-            'metrics': item_metrics
-        })
+    else:  # Monthly
+        model_params = {
+            'changepoint_prior_scale': 0.05,
+            'seasonality_prior_scale': 5.0,
+            'holidays_prior_scale': 5.0,
+            'seasonality_mode': 'additive',
+            'interval_width': 0.80,
+            'mcmc_samples': 0,
+            'yearly_seasonality': len(df_processed) >= 24,
+            'weekly_seasonality': False,
+            'daily_seasonality': False,
+        }
+        add_monthly_seasonality = False
+    
+    try:
+        # Initialize Prophet model
+        model = Prophet(**model_params)
         
-        if not item_df.empty:
-            forecast, _, _ = forecast_with_prophet(item_df, periods=12, frequency='W')
-            stockout_date = predict_stockout(item.id, forecast)
-            if stockout_date:
-                # Calculate days until stockout
-                today = timezone.now().date()
-                days_until = (stockout_date.date() - today).days if hasattr(stockout_date, 'date') else None
-                
-                items_with_stockout.append({
-                    'item': item,
-                    'stockout_date': stockout_date,
-                    'days_until': days_until
-                })
+        # Add custom seasonalities with more conservative parameters
+        if frequency == 'W' and add_monthly_seasonality:
+            model.add_seasonality(
+                name='monthly', 
+                period=30.5/7,  # Monthly pattern in weeks
+                fourier_order=3,  # Reduced from 5 to 3 for less overfitting
+                prior_scale=1.0   # Conservative prior
+            )
+        
+        # Fit model
+        model.fit(df_processed)
+        
+        # Create future dataframe
+        future = model.make_future_dataframe(periods=periods, freq=frequency)
+        
+        # Generate forecast
+        forecast = model.predict(future)
+        
+        # Ensure forecasted values are non-negative and reasonable
+        forecast['yhat'] = forecast['yhat'].clip(lower=0)
+        forecast['yhat_lower'] = forecast['yhat_lower'].clip(lower=0)
+        forecast['yhat_upper'] = forecast['yhat_upper'].clip(lower=0)
+        
+        # Apply smoothing to reduce volatility in weekly forecasts
+        if frequency == 'W' and len(forecast) > 3:
+            # Apply simple moving average smoothing to reduce noise
+            window_size = min(3, len(forecast) // 4)
+            if window_size > 1:
+                forecast['yhat'] = forecast['yhat'].rolling(
+                    window=window_size, 
+                    center=True, 
+                    min_periods=1
+                ).mean()
+        
+        # Calculate accuracy metrics on historical period
+        accuracy_metrics = calculate_improved_accuracy(df_processed, forecast)
+        
+        # Create visualization
+        graphic = create_forecast_chart(model, forecast, df_processed, accuracy_metrics)
+        
+        return forecast, graphic, accuracy_metrics
+        
+    except Exception as e:
+        print(f"Error in Prophet forecasting: {str(e)}")
+        return create_error_chart(str(e))
+
+def calculate_improved_accuracy(actual_df, forecast_df):
+    """
+    Improved accuracy calculation with better handling of weekly volatility
+    """
+    if actual_df.empty or forecast_df.empty:
+        return {'mape': None, 'rmse': None, 'mae': None}
     
-    # Sort by stockout date
-    if items_with_stockout:
-        items_with_stockout.sort(key=lambda x: x['stockout_date'])
+    # Get historical forecast (fitted values)
+    historical_forecast = forecast_df[
+        forecast_df['ds'].isin(actual_df['ds'])
+    ].copy()
     
-    # Sort items by inventory turnover (highest first)
-    items_performance.sort(
-        key=lambda x: x['metrics']['inventory_turnover'] if x['metrics']['inventory_turnover'] is not None else 0, 
-        reverse=True
+    if historical_forecast.empty:
+        return calculate_approximate_accuracy(actual_df, forecast_df)
+    
+    # Merge actual and forecasted data
+    merged_df = pd.merge(
+        actual_df, 
+        historical_forecast[['ds', 'yhat']], 
+        on='ds', 
+        how='inner'
     )
     
-    context = {
-        'overall_chart': overall_chart,
-        'overall_metrics': overall_metrics,
-        'overall_performance': overall_performance,
-        'items_with_stockout': items_with_stockout,
-        'items_performance': items_performance,
-        'latest_transactions': latest_transactions,
-        'items': items,  # Add all items for the chart
-    }
+    if merged_df.empty or len(merged_df) < 2:
+        return {'mape': None, 'rmse': None, 'mae': None}
     
-    return render(request, 'AApp/index.html', context)
+    # Calculate errors
+    merged_df['error'] = merged_df['y'] - merged_df['yhat']
+    merged_df['abs_error'] = abs(merged_df['error'])
+    merged_df['squared_error'] = merged_df['error'] ** 2
+    
+    # Improved MAPE calculation that handles zero values better
+    # For retail data, use a small epsilon to avoid division by zero
+    epsilon = 0.1  # Small value to avoid division by zero
+    merged_df['adj_actual'] = merged_df['y'] + epsilon
+    merged_df['percent_error'] = 100.0 * merged_df['abs_error'] / merged_df['adj_actual']
+    
+    # Alternative: Symmetric MAPE (SMAPE) which is more robust
+    merged_df['smape'] = 100.0 * merged_df['abs_error'] / (
+        (abs(merged_df['y']) + abs(merged_df['yhat'])) / 2 + epsilon
+    )
+    
+    # Calculate metrics
+    mape = float(merged_df['percent_error'].mean())
+    smape = float(merged_df['smape'].mean())
+    rmse = float(np.sqrt(merged_df['squared_error'].mean()))
+    mae = float(merged_df['abs_error'].mean())
+    
+    # Return SMAPE instead of MAPE for better interpretation
+    return {
+        'mape': smape,  # Using SMAPE as it's more robust
+        'rmse': rmse, 
+        'mae': mae,
+        'traditional_mape': mape  # Keep original for comparison
+    }
 
 
+def prepare_time_series_data(item_id=None, period='weekly'):
+    """
+    Improved time series data preparation with better handling of weekly volatility
+    """
+    # Query transactions, filter by item if specified
+    queryset = Transaction.objects.all()
+    if item_id:
+        queryset = queryset.filter(item_id=item_id)
+    
+    # Group by time period and sum quantities
+    if period == 'weekly':
+        data = queryset.annotate(
+            week=models.functions.TruncWeek('timestamp')
+        ).values('week').annotate(
+            total_quantity=Sum('quantity')
+        ).order_by('week')
+        
+        df = pd.DataFrame(list(data))
+        if df.empty:
+            return pd.DataFrame(columns=['ds', 'y'])
+            
+        df.rename(columns={'week': 'ds', 'total_quantity': 'y'}, inplace=True)
+        df['ds'] = df['ds'].dt.tz_localize(None)
+        
+        # Fill gaps in weekly data
+        df = fill_time_gaps(df, freq='W')
+        
+        # Apply additional smoothing for weekly data to reduce noise
+        if len(df) > 2:
+            # Apply light smoothing to reduce weekly volatility
+            df['y_smoothed'] = df['y'].rolling(window=2, center=True, min_periods=1).mean()
+            # Use original for zero weeks, smoothed for others
+            df['y'] = df['y_smoothed']
+            df = df.drop('y_smoothed', axis=1)
+        
+    elif period == 'monthly':
+        data = queryset.annotate(
+            month=models.functions.TruncMonth('timestamp')
+        ).values('month').annotate(
+            total_quantity=Sum('quantity')
+        ).order_by('month')
+        
+        df = pd.DataFrame(list(data))
+        if df.empty:
+            return pd.DataFrame(columns=['ds', 'y'])
+            
+        df.rename(columns={'month': 'ds', 'total_quantity': 'y'}, inplace=True)
+        df['ds'] = df['ds'].dt.tz_localize(None)
+        
+        # Fill gaps in monthly data
+        df = fill_time_gaps(df, freq='M')
+    
+    # Clean the data with more conservative approach
+    df = clean_time_series_data_improved(df, period)
+    
+    return df
 
+def clean_time_series_data_improved(df, period='weekly'):
+    """
+    Improved data cleaning with period-specific handling
+    """
+    if df.empty or len(df) < 2:
+        return df
+    
+    # Remove negative values
+    df = df[df['y'] >= 0].copy()
+    
+    if period == 'weekly':
+        # More conservative outlier removal for weekly data
+        if len(df) > 4:
+            # Use quantile-based approach instead of standard deviation
+            Q1 = df['y'].quantile(0.10)  # More conservative
+            Q3 = df['y'].quantile(0.90)
+            IQR = Q3 - Q1
+            
+            # Allow for reasonable sales spikes
+            upper_threshold = Q3 + 2.0 * IQR  # More lenient upper bound
+            lower_threshold = max(0, Q1 - 1.0 * IQR)
+            
+            df = df[(df['y'] >= lower_threshold) & (df['y'] <= upper_threshold)].copy()
+    
+    else:  # Monthly data
+        # Standard outlier removal for monthly data
+        if len(df) > 3:
+            mean_val = df['y'].mean()
+            std_val = df['y'].std()
+            if std_val > 0:
+                df = df[abs(df['y'] - mean_val) <= 2.5 * std_val].copy()
+    
+    # Ensure we still have enough data points
+    if len(df) < 2:
+        return pd.DataFrame(columns=['ds', 'y'])
+    
+    return df
+
+def fill_time_gaps(df, freq='W'):
+    """
+    Improved gap filling with better handling of missing periods
+    """
+    if df.empty:
+        return df
+    
+    # Create a complete date range
+    start_date = df['ds'].min()
+    end_date = df['ds'].max()
+    
+    if freq == 'W':
+        date_range = pd.date_range(start=start_date, end=end_date, freq='W-MON')
+    elif freq == 'M':
+        date_range = pd.date_range(start=start_date, end=end_date, freq='MS')
+    else:
+        return df
+    
+    # Create complete dataframe with all dates
+    complete_df = pd.DataFrame({'ds': date_range})
+    
+    # Merge with existing data
+    df = complete_df.merge(df, on='ds', how='left')
+    
+    # Improved missing value handling
+    if freq == 'W':
+        # For weekly data, use forward fill for short gaps, zero for longer gaps
+        df['y'] = df['y'].fillna(method='ffill', limit=1)  # Forward fill max 1 week
+        df['y'] = df['y'].fillna(0)  # Fill remaining with 0
+    else:
+        # For monthly data, use interpolation for single missing months
+        df['y'] = df['y'].interpolate(method='linear', limit=1)
+        df['y'] = df['y'].fillna(0)
+    
+    return df
 
 
 

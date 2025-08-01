@@ -3,7 +3,7 @@ import json
 
 # Function to get the local IP address of your Django server
 def get_django_ip():
-    return "172.20.164.151"  # Replace with your actual local IP
+    return "192.168.168.26"  # Replace with your actual local IP
 
 # Function to get the port your Django app is running on
 def get_django_port():
@@ -55,13 +55,13 @@ cart_empty = {
 
 cart_partial = {
     "items": {
-	"ncooking oil (1L)": {
-            "quantity": 5, "price": 160, "total_price": 800, "confidence": 0.9465694427490234, "weight": 4.564365833463171
+	"ndettol": {
+            "quantity": 1, "price": 100, "total_price": 100, "confidence": 0.879852547, "weight": 150.0145
         }
 
     },
-    "total_cost": 30.0,
-    "total_weight": 4.564365833463171
+    "total_cost": 100.0,
+    "total_weight": 150.0145
 }
 
 # User input for cart selection
