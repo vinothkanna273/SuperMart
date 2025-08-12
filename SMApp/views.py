@@ -1,6 +1,7 @@
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
@@ -10,12 +11,12 @@ from django.contrib import messages
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Sum
 from django.db import models
+from django.utils import timezone
 
 import json
 import csv
 import docx
 import urllib.parse
-from decimal import Decimal
 from collections import deque
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -30,12 +31,12 @@ import io
 import base64
 from prophet import Prophet
 from prophet.diagnostics import cross_validation, performance_metrics
-from django.db.models import Sum
-from django.db import models
-from django.utils import timezone
 from decimal import Decimal
 import datetime
-
+from scipy import stats
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+import warnings
+warnings.filterwarnings('ignore')
 
 from .forms import ItemForm
 from .models import Item, Floor, Shelf, Transaction
@@ -67,6 +68,7 @@ def history(request):
         'items': transactions_list,
     }
     return render(request, 'AApp/history.html', context)
+
 
 
 # items
@@ -130,7 +132,6 @@ def search_item(request):
                    Item.objects.filter(price__icontains=search_str)
         data = list(items.values())
         return JsonResponse(data, safe=False)
-
 
 
 
@@ -213,6 +214,7 @@ def view_floor(request, floor_name):
 
 
 
+# customer list handling
 def handle_uploaded_file(file):
     file_type = file.content_type
 
@@ -312,7 +314,6 @@ def customer_view_floor(request, floor_name):
     except Floor.DoesNotExist:
         return render(request, 'AApp/customer/viewCustomerFloor.html', {'floor_name': floor_name})
 
-
 @csrf_exempt
 def get_detected_items(request):
     if request.method == 'GET':
@@ -407,7 +408,8 @@ def update_cart(request):
     }, status=405)
 
 
-@login_required  
+
+# payment
 def payment_confirmation(request):
     # Get items from cache that were detected
     matched_items = cache.get('detected_matched_items', [])
@@ -425,7 +427,6 @@ def payment_confirmation(request):
     
     return render(request, 'AApp/customer/paymentPage.html', context)
 
-@login_required  
 @csrf_exempt
 def process_payment(request):
     if request.method == 'POST':
@@ -492,9 +493,6 @@ def payment_success(request):
 
 
 # Analytics
-
-
-# -----------------------
 
 def calculate_item_performance_metrics(item_id=None, period='monthly', months=6):
     end_date = timezone.now().date()
@@ -1000,7 +998,6 @@ def create_error_chart(error_message):
     graphic = base64.b64encode(image_png).decode('utf-8')
     return pd.DataFrame(columns=['ds', 'yhat', 'yhat_lower', 'yhat_upper']), graphic, None
 
-
 # ------------------
 
 # def forecast_with_prophet(df, periods=12, frequency='W'):
@@ -1194,7 +1191,6 @@ def debug_accuracy_calculation(item_id=None):
     
     return weekly_df
 
-
 # --------------
 def predict_stockout(item_id, forecast_df):
     """
@@ -1237,7 +1233,6 @@ def predict_stockout(item_id, forecast_df):
         
     except Item.DoesNotExist:
         return None
-
 
 def forecast_with_prophet(df, periods=12, frequency='W'):
     """
@@ -1406,7 +1401,6 @@ def calculate_improved_accuracy(actual_df, forecast_df):
         'traditional_mape': mape  # Keep original for comparison
     }
 
-
 def prepare_time_series_data(item_id=None, period='weekly'):
     """
     Improved time series data preparation with better handling of weekly volatility
@@ -1540,9 +1534,673 @@ def fill_time_gaps(df, freq='W'):
 
 
 
+# Advanced forecast metrics
+class AdvancedForecastingMetrics:
+    """
+    Advanced forecasting evaluation metrics for sales prediction
+    """
+    
+    @staticmethod
+    def calculate_smape(y_true, y_pred):
+        """Symmetric Mean Absolute Percentage Error"""
+        y_true, y_pred = np.array(y_true), np.array(y_pred)
+        epsilon = 1e-8  # Small value to avoid division by zero
+        
+        numerator = np.abs(y_true - y_pred)
+        denominator = (np.abs(y_true) + np.abs(y_pred)) / 2 + epsilon
+        
+        smape = np.mean(numerator / denominator) * 100
+        return smape
+    
+    @staticmethod
+    def calculate_mase(y_true, y_pred, y_train):
+        """Mean Absolute Scaled Error"""
+        y_true, y_pred, y_train = np.array(y_true), np.array(y_pred), np.array(y_train)
+        
+        # Calculate MAE of forecast
+        mae_forecast = np.mean(np.abs(y_true - y_pred))
+        
+        # Calculate MAE of naive forecast (seasonal naive for sales data)
+        if len(y_train) > 1:
+            # Use simple naive forecast (last period = current period)
+            naive_errors = np.abs(np.diff(y_train))
+            mae_naive = np.mean(naive_errors) if len(naive_errors) > 0 else 1.0
+        else:
+            mae_naive = 1.0
+        
+        # Avoid division by zero
+        mae_naive = max(mae_naive, 1e-8)
+        
+        mase = mae_forecast / mae_naive
+        return mase
+    
+    @staticmethod
+    def calculate_crps_empirical(y_true, y_pred_lower, y_pred_upper, y_pred_mean):
+        """
+        Simplified CRPS calculation using prediction intervals
+        """
+        y_true = np.array(y_true)
+        y_pred_lower = np.array(y_pred_lower)
+        y_pred_upper = np.array(y_pred_upper)
+        y_pred_mean = np.array(y_pred_mean)
+        
+        crps_scores = []
+        
+        for i in range(len(y_true)):
+            # Simplified CRPS approximation using prediction intervals
+            # This assumes a normal distribution between lower and upper bounds
+            true_val = y_true[i]
+            pred_mean = y_pred_mean[i]
+            pred_std = (y_pred_upper[i] - y_pred_lower[i]) / (2 * 1.96)  # Approximate std from 95% CI
+            
+            if pred_std > 0:
+                # CRPS for normal distribution
+                z = (true_val - pred_mean) / pred_std
+                crps = pred_std * (z * (2 * stats.norm.cdf(z) - 1) + 2 * stats.norm.pdf(z) - 1/np.sqrt(np.pi))
+            else:
+                crps = abs(true_val - pred_mean)
+            
+            crps_scores.append(crps)
+        
+        return np.mean(crps_scores)
+    
+    @staticmethod
+    def calculate_prediction_intervals_coverage(y_true, y_pred_lower, y_pred_upper, confidence_level=0.95):
+        """
+        Calculate prediction interval coverage
+        """
+        y_true = np.array(y_true)
+        y_pred_lower = np.array(y_pred_lower)
+        y_pred_upper = np.array(y_pred_upper)
+        
+        # Check if actual values fall within prediction intervals
+        within_interval = (y_true >= y_pred_lower) & (y_true <= y_pred_upper)
+        coverage = np.mean(within_interval)
+        
+        # Calculate average interval width
+        avg_width = np.mean(y_pred_upper - y_pred_lower)
+        
+        # Calculate normalized interval width
+        mean_actual = np.mean(y_true) if np.mean(y_true) > 0 else 1
+        normalized_width = avg_width / mean_actual
+        
+        return {
+            'coverage': coverage,
+            'expected_coverage': confidence_level,
+            'avg_width': avg_width,
+            'normalized_width': normalized_width,
+            'coverage_difference': abs(coverage - confidence_level)
+        }
 
+def calculate_item_performance_metrics_enhanced(item_id=None, period='monthly', months=6):
+    """
+    Enhanced version of your existing function with advanced metrics
+    """
+    end_date = timezone.now().date()
+    start_date = end_date - datetime.timedelta(days=30*months)
+    
+    # Query base (same as your existing code)
+    queryset = Transaction.objects.filter(timestamp__gte=start_date)
+    if item_id:
+        queryset = queryset.filter(item_id=item_id)
+        try:
+            item = Item.objects.get(id=item_id)
+            current_stock = item.quantity
+        except Item.DoesNotExist:
+            current_stock = 0
+    else:
+        current_stock = Item.objects.aggregate(Sum('quantity'))['quantity__sum'] or 0
+    
+    # Basic metrics (same as your existing code)
+    total_sales = queryset.aggregate(Sum('quantity'))['quantity__sum'] or 0
+    days_in_period = (end_date - start_date).days
+    if days_in_period == 0:
+        days_in_period = 1
+    
+    sales_velocity_daily = total_sales / days_in_period
+    sales_velocity_weekly = sales_velocity_daily * 7
+    sales_velocity_monthly = sales_velocity_daily * 30
+    
+    days_of_supply = None
+    if sales_velocity_daily > 0:
+        days_of_supply = current_stock / sales_velocity_daily
+    
+    inventory_turnover = None
+    if current_stock > 0:
+        inventory_turnover = (total_sales / days_in_period * 365) / current_stock
+    
+    # NEW: Add category classification
+    # Determine if this is high-selling or low-selling item
+    if item_id:
+        # Get overall sales percentile
+        all_items_sales = []
+        for item in Item.objects.all():
+            item_sales = Transaction.objects.filter(
+                item_id=item.id, 
+                timestamp__gte=start_date
+            ).aggregate(Sum('quantity'))['quantity__sum'] or 0
+            all_items_sales.append(item_sales)
+        
+        if all_items_sales:
+            sales_percentile = stats.percentileofscore(all_items_sales, total_sales)
+            category = 'high_selling' if sales_percentile >= 50 else 'low_selling'
+        else:
+            category = 'unknown'
+    else:
+        category = 'overall'
+    
+    return {
+        'sales_velocity_daily': sales_velocity_daily,
+        'sales_velocity_weekly': sales_velocity_weekly,
+        'sales_velocity_monthly': sales_velocity_monthly,
+        'days_of_supply': days_of_supply,
+        'inventory_turnover': inventory_turnover,
+        'total_sales_period': total_sales,
+        'current_stock': current_stock,
+        'category': category,  # NEW
+        'sales_percentile': sales_percentile if item_id else None  # NEW
+    }
 
+def forecast_with_prophet_enhanced(df, periods=12, frequency='W', item_id=None):
+    """
+    Enhanced Prophet forecasting with advanced metrics
+    """
+    # Check if DataFrame is empty or has insufficient data
+    if df.empty or len(df) < 3:
+        return create_no_data_chart()
+    
+    # Check for sufficient variability in the data
+    if df['y'].std() == 0:
+        return create_flat_forecast_chart(df, periods, frequency)
+    
+    # Split data for validation (80% train, 20% test)
+    split_point = int(len(df) * 0.8)
+    train_df = df.iloc[:split_point].copy()
+    test_df = df.iloc[split_point:].copy()
+    
+    # If test set is too small, use all data for training
+    if len(test_df) < 2:
+        train_df = df.copy()
+        test_df = pd.DataFrame()
+    
+    # Configure Prophet (same as your existing code)
+    model_params = {
+        'changepoint_prior_scale': 0.01,
+        'seasonality_prior_scale': 1.0,
+        'holidays_prior_scale': 1.0,
+        'seasonality_mode': 'additive',
+        'interval_width': 0.80,
+        'mcmc_samples': 0,
+        'yearly_seasonality': False,
+        'weekly_seasonality': False,
+        'daily_seasonality': False,
+    }
+    
+    try:
+        # Initialize Prophet model
+        model = Prophet(**model_params)
+        
+        # Add custom seasonalities
+        if frequency == 'W' and len(train_df) >= 12:
+            model.add_seasonality(
+                name='monthly', 
+                period=30.5/7,
+                fourier_order=3,
+                prior_scale=1.0
+            )
+        
+        # Fit model on training data
+        model.fit(train_df)
+        
+        # Create future dataframe for full forecast
+        future_full = model.make_future_dataframe(periods=periods, freq=frequency)
+        forecast_full = model.predict(future_full)
+        
+        # Ensure non-negative forecasts
+        forecast_full['yhat'] = forecast_full['yhat'].clip(lower=0)
+        forecast_full['yhat_lower'] = forecast_full['yhat_lower'].clip(lower=0)
+        forecast_full['yhat_upper'] = forecast_full['yhat_upper'].clip(lower=0)
+        
+        # NEW: Calculate advanced metrics if we have test data
+        advanced_metrics = {}
+        if not test_df.empty:
+            # Predict on test set
+            test_future = pd.DataFrame({'ds': test_df['ds']})
+            test_forecast = model.predict(test_future)
+            
+            # Ensure arrays have same length
+            min_len = min(len(test_df), len(test_forecast))
+            y_true = test_df['y'].iloc[:min_len].values
+            y_pred = test_forecast['yhat'].iloc[:min_len].values
+            y_pred_lower = test_forecast['yhat_lower'].iloc[:min_len].values
+            y_pred_upper = test_forecast['yhat_upper'].iloc[:min_len].values
+            
+            if len(y_true) > 0:
+                # Initialize advanced metrics calculator
+                metrics_calc = AdvancedForecastingMetrics()
+                
+                # Calculate advanced metrics
+                advanced_metrics = {
+                    'smape': metrics_calc.calculate_smape(y_true, y_pred),
+                    'mase': metrics_calc.calculate_mase(y_true, y_pred, train_df['y'].values),
+                    'crps': metrics_calc.calculate_crps_empirical(y_true, y_pred_lower, y_pred_upper, y_pred),
+                    'rmse': np.sqrt(mean_squared_error(y_true, y_pred)),
+                    'mae': mean_absolute_error(y_true, y_pred),
+                    'traditional_mape': np.mean(np.abs((y_true - y_pred) / (y_true + 1e-8))) * 100
+                }
+                
+                # Calculate prediction interval coverage for different confidence levels
+                confidence_levels = [0.8, 0.9, 0.95]  # Assuming 80% interval from Prophet
+                advanced_metrics['prediction_intervals'] = {}
+                
+                for conf_level in confidence_levels:
+                    if conf_level == 0.8:  # Use Prophet's default 80% interval
+                        coverage_metrics = metrics_calc.calculate_prediction_intervals_coverage(
+                            y_true, y_pred_lower, y_pred_upper, conf_level
+                        )
+                        advanced_metrics['prediction_intervals'][f'{int(conf_level*100)}%'] = coverage_metrics
+        
+        # Calculate overall accuracy on full dataset (in-sample)
+        in_sample_forecast = forecast_full[forecast_full['ds'].isin(df['ds'])]
+        if len(in_sample_forecast) == len(df):
+            metrics_calc = AdvancedForecastingMetrics()
+            
+            y_true_full = df['y'].values
+            y_pred_full = in_sample_forecast['yhat'].values
+            
+            # Add in-sample metrics
+            advanced_metrics['in_sample'] = {
+                'smape': metrics_calc.calculate_smape(y_true_full, y_pred_full),
+                'rmse': np.sqrt(mean_squared_error(y_true_full, y_pred_full)),
+                'mae': mean_absolute_error(y_true_full, y_pred_full)
+            }
+        
+        # Create visualization (enhanced version of your existing function)
+        graphic = create_enhanced_forecast_chart(model, forecast_full, df, advanced_metrics)
+        
+        return forecast_full, graphic, advanced_metrics
+        
+    except Exception as e:
+        print(f"Error in enhanced Prophet forecasting: {str(e)}")
+        return create_error_chart(str(e))
 
+def create_enhanced_forecast_chart(model, forecast, df, advanced_metrics):
+    """
+    Enhanced version of your forecast chart with metrics display
+    """
+    fig = plt.figure(figsize=(16, 12))
+    
+    # Main forecast plot
+    ax1 = plt.subplot(3, 1, 1)
+    model.plot(forecast, ax=ax1)
+    ax1.set_title('Sales Forecast with Confidence Intervals', fontsize=16, fontweight='bold')
+    ax1.set_xlabel('Date', fontsize=12)
+    ax1.set_ylabel('Sales Quantity', fontsize=12)
+    ax1.grid(True, alpha=0.3)
+    
+    # Add advanced metrics text box
+    if advanced_metrics:
+        metrics_text = "Advanced Metrics:\n"
+        if 'smape' in advanced_metrics:
+            metrics_text += f"sMAPE: {advanced_metrics['smape']:.2f}%\n"
+        if 'mase' in advanced_metrics:
+            metrics_text += f"MASE: {advanced_metrics['mase']:.3f}\n"
+        if 'crps' in advanced_metrics:
+            metrics_text += f"CRPS: {advanced_metrics['crps']:.3f}\n"
+        if 'rmse' in advanced_metrics:
+            metrics_text += f"RMSE: {advanced_metrics['rmse']:.2f}\n"
+        if 'mae' in advanced_metrics:
+            metrics_text += f"MAE: {advanced_metrics['mae']:.2f}\n"
+        
+        # Add prediction interval coverage
+        if 'prediction_intervals' in advanced_metrics:
+            metrics_text += "\nPrediction Intervals:\n"
+            for level, metrics in advanced_metrics['prediction_intervals'].items():
+                coverage = metrics['coverage'] * 100
+                expected = metrics['expected_coverage'] * 100
+                metrics_text += f"{level}: {coverage:.1f}% (target: {expected:.0f}%)\n"
+        
+        ax1.text(0.02, 0.98, metrics_text, transform=ax1.transAxes, 
+                fontsize=10, verticalalignment='top',
+                bbox=dict(boxstyle="round,pad=0.5", facecolor="lightblue", alpha=0.8))
+    
+    # Components plot
+    try:
+        ax2 = plt.subplot(3, 1, 2)
+        components = model.predict(model.history)
+        ax2.plot(components['ds'], components['trend'], label='Trend', linewidth=2)
+        if 'monthly' in components.columns:
+            ax2.plot(components['ds'], components['monthly'], label='Monthly Seasonality', alpha=0.7)
+        ax2.set_title('Forecast Components', fontsize=14, fontweight='bold')
+        ax2.set_xlabel('Date', fontsize=12)
+        ax2.set_ylabel('Component Value', fontsize=12)
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+    except:
+        ax2 = plt.subplot(3, 1, 2)
+        ax2.text(0.5, 0.5, f'Historical Data Points: {len(df)}\nForecast Points: {len(forecast)}', 
+                horizontalalignment='center', verticalalignment='center',
+                transform=ax2.transAxes, fontsize=14)
+        ax2.set_title('Forecast Summary', fontsize=14, fontweight='bold')
+    
+    # Residuals plot (if we have test metrics)
+    ax3 = plt.subplot(3, 1, 3)
+    if advanced_metrics and 'in_sample' in advanced_metrics:
+        # Plot residuals for in-sample forecast
+        in_sample_forecast = forecast[forecast['ds'].isin(df['ds'])]
+        if len(in_sample_forecast) == len(df):
+            residuals = df['y'].values - in_sample_forecast['yhat'].values
+            ax3.plot(df['ds'], residuals, 'o-', alpha=0.7, label='Residuals')
+            ax3.axhline(y=0, color='r', linestyle='--', alpha=0.7)
+            ax3.set_title('Forecast Residuals', fontsize=14, fontweight='bold')
+            ax3.set_xlabel('Date', fontsize=12)
+            ax3.set_ylabel('Residual', fontsize=12)
+            ax3.grid(True, alpha=0.3)
+            ax3.legend()
+        else:
+            ax3.text(0.5, 0.5, 'Residuals plot not available', 
+                    horizontalalignment='center', verticalalignment='center',
+                    transform=ax3.transAxes, fontsize=12)
+    else:
+        ax3.text(0.5, 0.5, 'Advanced metrics calculated on validation set', 
+                horizontalalignment='center', verticalalignment='center',
+                transform=ax3.transAxes, fontsize=12)
+    
+    plt.tight_layout()
+    
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format='png', dpi=100, bbox_inches='tight')
+    buffer.seek(0)
+    image_png = buffer.getvalue()
+    buffer.close()
+    plt.close(fig)
+    
+    return base64.b64encode(image_png).decode('utf-8')
+
+# Enhanced analytics dashboard
+def analytics_dashboard_enhanced(request):
+    """
+    Enhanced analytics dashboard with category-based analysis
+    """
+    # Get all items
+    items = Item.objects.all()
+    
+    # Initialize category results
+    category_results = {
+        'high_selling': {'items': [], 'metrics': [], 'total_sales': 0},
+        'low_selling': {'items': [], 'metrics': [], 'total_sales': 0}
+    }
+    
+    # Process each item with enhanced metrics
+    all_items_metrics = []
+    
+    for item in items:
+        try:
+            # Get item performance metrics with category
+            item_metrics = calculate_item_performance_metrics_enhanced(item_id=item.id)
+            
+            # Get forecasting data
+            item_df = prepare_time_series_data(item_id=item.id, period='weekly')
+            
+            if len(item_df) >= 3:
+                # Run enhanced forecasting
+                forecast, chart, advanced_metrics = forecast_with_prophet_enhanced(
+                    item_df, periods=12, frequency='W', item_id=item.id
+                )
+                
+                # Combine basic and advanced metrics
+                combined_metrics = {
+                    **item_metrics,
+                    'advanced_metrics': advanced_metrics,
+                    'forecast': forecast,
+                    'chart': chart
+                }
+                
+                # Add to category
+                category = item_metrics['category']
+                if category in category_results:
+                    category_results[category]['items'].append({
+                        'item': item,
+                        'metrics': combined_metrics
+                    })
+                    category_results[category]['total_sales'] += item_metrics['total_sales_period']
+                    
+                    # Collect advanced metrics for aggregation
+                    if advanced_metrics:
+                        category_results[category]['metrics'].append(advanced_metrics)
+                
+                all_items_metrics.append({
+                    'item': item,
+                    'metrics': combined_metrics
+                })
+                
+        except Exception as e:
+            print(f"Error processing item {item.id} ({item.name}): {str(e)}")
+    
+    # Calculate aggregated metrics for each category
+    for category in category_results:
+        metrics_list = category_results[category]['metrics']
+        if metrics_list:
+            # Calculate average metrics
+            avg_metrics = {}
+            for metric_name in ['smape', 'mase', 'crps', 'rmse', 'mae']:
+                values = [m[metric_name] for m in metrics_list if metric_name in m and m[metric_name] is not None]
+                if values:
+                    avg_metrics[metric_name] = {
+                        'mean': np.mean(values),
+                        'std': np.std(values),
+                        'count': len(values)
+                    }
+            
+            category_results[category]['aggregated_metrics'] = avg_metrics
+    
+    # Calculate overall performance
+    try:
+        overall_performance = calculate_item_performance_metrics_enhanced(period='monthly')
+    except Exception as e:
+        print(f"Error calculating overall performance: {str(e)}")
+        overall_performance = {}
+    
+    # Get latest transactions
+    latest_transactions = Transaction.objects.all().order_by('-timestamp')[:10]
+    
+    # Prepare context with enhanced data
+    context = {
+        'category_results': category_results,
+        'overall_performance': overall_performance,
+        'all_items_metrics': all_items_metrics[:20],  # Limit display
+        'latest_transactions': latest_transactions,
+        'items': items,
+        'total_items': items.count(),
+        'low_stock_items': items.filter(quantity__lt=10).count(),
+        'advanced_metrics_enabled': True,
+        # Summary statistics
+        'high_selling_count': len(category_results['high_selling']['items']),
+        'low_selling_count': len(category_results['low_selling']['items']),
+        'total_sales_high': category_results['high_selling']['total_sales'],
+        'total_sales_low': category_results['low_selling']['total_sales'],
+    }
+    
+    return render(request, 'AApp/analytics/enanalytics.html', context)
+
+# Enhanced item analytics view
+def item_analytics_view_enhanced(request, item_id):
+    """
+    Enhanced item analytics view with advanced metrics
+    """
+    try:
+        # Get the item
+        item = Item.objects.get(id=item_id)
+        
+        # Prepare time series data
+        weekly_df = prepare_time_series_data(item_id=item_id, period='weekly')
+        monthly_df = prepare_time_series_data(item_id=item_id, period='monthly')
+        
+        # Generate enhanced forecasts
+        weekly_results = None
+        monthly_results = None
+        
+        if len(weekly_df) >= 3:
+            try:
+                weekly_forecast, weekly_chart, weekly_metrics = forecast_with_prophet_enhanced(
+                    weekly_df, periods=12, frequency='W', item_id=item_id
+                )
+                weekly_results = {
+                    'forecast': weekly_forecast,
+                    'chart': weekly_chart,
+                    'metrics': weekly_metrics
+                }
+            except Exception as e:
+                print(f"Error in weekly forecast for item {item.name}: {str(e)}")
+        
+        if len(monthly_df) >= 3:
+            try:
+                monthly_forecast, monthly_chart, monthly_metrics = forecast_with_prophet_enhanced(
+                    monthly_df, periods=6, frequency='M', item_id=item_id
+                )
+                monthly_results = {
+                    'forecast': monthly_forecast,
+                    'chart': monthly_chart,
+                    'metrics': monthly_metrics
+                }
+            except Exception as e:
+                print(f"Error in monthly forecast for item {item.name}: {str(e)}")
+        
+        # Calculate enhanced performance metrics
+        try:
+            performance_metrics = calculate_item_performance_metrics_enhanced(item_id=item_id)
+        except Exception as e:
+            print(f"Error calculating performance metrics for item {item.name}: {str(e)}")
+            performance_metrics = {}
+        
+        # Predict stockout date
+        stockout_date = None
+        if weekly_results and weekly_results['forecast'] is not None:
+            try:
+                stockout_date = predict_stockout(item_id, weekly_results['forecast'])
+            except Exception as e:
+                print(f"Error predicting stockout for item {item.name}: {str(e)}")
+        
+        context = {
+            'item': item,
+            'weekly_results': weekly_results,
+            'monthly_results': monthly_results,
+            'stockout_date': stockout_date,
+            'performance_metrics': performance_metrics,
+            'weekly_data_points': len(weekly_df),
+            'monthly_data_points': len(monthly_df),
+            'advanced_metrics_available': True,
+        }
+        
+        return render(request, 'AApp/analytics/enhanced_item_analytics.html', context)
+        
+    except Item.DoesNotExist:
+        messages.error(request, f'Item with ID {item_id} does not exist.')
+        return redirect('items-list')
+    except Exception as e:
+        messages.error(request, f'Error loading enhanced analytics: {str(e)}')
+        return redirect('items-list')
+
+def get_category_comparison_report(request):
+    """
+    API endpoint to get category comparison report
+    """
+    if request.method == 'GET':
+        try:
+            # Get all items and categorize them
+            items = Item.objects.all()
+            
+            report_data = {
+                'high_selling': {'count': 0, 'avg_smape': 0, 'avg_mase': 0, 'avg_crps': 0},
+                'low_selling': {'count': 0, 'avg_smape': 0, 'avg_mase': 0, 'avg_crps': 0},
+                'comparison': {}
+            }
+            
+            high_selling_metrics = []
+            low_selling_metrics = []
+            
+            for item in items:
+                try:
+                    item_df = prepare_time_series_data(item_id=item.id, period='weekly')
+                    if len(item_df) >= 3:
+                        _, _, advanced_metrics = forecast_with_prophet_enhanced(
+                            item_df, periods=12, frequency='W', item_id=item.id
+                        )
+                        
+                        if advanced_metrics:
+                            # Get item category
+                            perf_metrics = calculate_item_performance_metrics_enhanced(item_id=item.id)
+                            category = perf_metrics.get('category', 'unknown')
+                            
+                            if category == 'high_selling':
+                                high_selling_metrics.append(advanced_metrics)
+                            elif category == 'low_selling':
+                                low_selling_metrics.append(advanced_metrics)
+                                
+                except Exception as e:
+                    continue
+            
+            # Calculate averages
+            if high_selling_metrics:
+                report_data['high_selling'] = {
+                    'count': len(high_selling_metrics),
+                    'avg_smape': np.mean([m['smape'] for m in high_selling_metrics if 'smape' in m]),
+                    'avg_mase': np.mean([m['mase'] for m in high_selling_metrics if 'mase' in m]),
+                    'avg_crps': np.mean([m['crps'] for m in high_selling_metrics if 'crps' in m]),
+                }
+            
+            if low_selling_metrics:
+                report_data['low_selling'] = {
+                    'count': len(low_selling_metrics),
+                    'avg_smape': np.mean([m['smape'] for m in low_selling_metrics if 'smape' in m]),
+                    'avg_mase': np.mean([m['mase'] for m in low_selling_metrics if 'mase' in m]),
+                    'avg_crps': np.mean([m['crps'] for m in low_selling_metrics if 'crps' in m]),
+                }
+            
+            return JsonResponse(report_data)
+            
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+@require_http_methods(["GET"])
+def get_item_advanced_metrics(request, item_id):
+    """
+    API endpoint to get advanced metrics for a specific item
+    """
+    try:
+        # Get item data
+        item_df = prepare_time_series_data(item_id=item_id, period='weekly')
+        
+        if len(item_df) >= 3:
+            # Run enhanced forecasting
+            forecast, chart, advanced_metrics = forecast_with_prophet_enhanced(
+                item_df, periods=12, frequency='W', item_id=item_id
+            )
+            
+            # Prepare JSON response
+            response_data = {
+                'item_id': item_id,
+                'data_points': len(item_df),
+                'metrics': advanced_metrics if advanced_metrics else {},
+                'has_forecast': forecast is not None,
+                'timestamp': timezone.now().isoformat()
+            }
+            
+            return JsonResponse(response_data)
+        else:
+            return JsonResponse({
+                'error': 'Insufficient data',
+                'item_id': item_id,
+                'data_points': len(item_df),
+                'minimum_required': 3
+            }, status=400)
+            
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 

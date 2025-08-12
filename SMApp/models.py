@@ -21,7 +21,6 @@ class Floor(models.Model):
     def __str__(self):
         return f'{self.name} - Len: {self.length} - Wid: {self.width}'
 
-
 class Shelf(models.Model):
     floor = models.ForeignKey(Floor, on_delete=models.CASCADE)
     cell_index = models.IntegerField()

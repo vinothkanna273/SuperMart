@@ -32,5 +32,13 @@ urlpatterns = [
     path('analytics/item/<int:item_id>/', views.item_analytics_view, name='item_analytics'),
     path('debug-forecast/', views.debug_forecast_data, name='debug-forecast'),
 
+    # Enhanced Analytics URLs
+    path('enhanced/', views.analytics_dashboard_enhanced, name='enhanced-dashboard'),
+    path('item/<int:item_id>/analytics/enhanced/', views.item_analytics_view_enhanced, name='enhanced-item-analytics'),
+    path('api/category-comparison/', views.get_category_comparison_report, name='get-category-comparison-report'),
+
+    # Additional enhanced endpoints
+    path('api/advanced-metrics/<int:item_id>/', views.get_item_advanced_metrics, name='get-item-advanced-metrics'),
+
 
 ]

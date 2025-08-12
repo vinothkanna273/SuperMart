@@ -1,0 +1,409 @@
+<!-- enhanced_index.html - Enhanced Dashboard Template -->
+{% extends 'partials/base.html'%}
+{% load static %}
+{% block title %}Enhanced Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="h3 mb-4">Enhanced Analytics Dashboard</h1>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">High-Selling Items</h5>
+                    <h2>{{ high_selling_count }}</h2>
+                    <p class="mb-0">Total Sales: ${{ total_sales_high|floatformat:2 }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Low-Selling Items</h5>
+                    <h2>{{ low_selling_count }}</h2>
+                    <p class="mb-0">Total Sales: ${{ total_sales_low|floatformat:2 }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Items</h5>
+                    <h2>{{ total_items }}</h2>
+                    <p class="mb-0">Analyzed: {{ high_selling_count|add:low_selling_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Low Stock Items</h5>
+                    <h2>{{ low_stock_items }}</h2>
+                    <p class="mb-0">Need Attention</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Metrics Comparison -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Advanced Forecasting Metrics by Category</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- sMAPE Comparison -->
+                        <div class="col-md-4">
+                            <h6>sMAPE (Symmetric MAPE) - Lower is Better</h6>
+                            <div class="mb-3">
+                                <label>High-Selling Items:</label>
+                                {% if category_results.high_selling.aggregated_metrics.smape %}
+                                    <div class="progress mb-2">
+                                        <div class="progress-bar bg-primary" style="width: {{ category_results.high_selling.aggregated_metrics.smape.mean|floatformat:1 }}%">
+                                            {{ category_results.high_selling.aggregated_metrics.smape.mean|floatformat:2 }}%
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">No data available</p>
+                                {% endif %}
+                            </div>
+                            <div class="mb-3">
+                                <label>Low-Selling Items:</label>
+                                {% if category_results.low_selling.aggregated_metrics.smape %}
+                                    <div class="progress mb-2">
+                                        <div class="progress-bar bg-success" style="width: {{ category_results.low_selling.aggregated_metrics.smape.mean|floatformat:1 }}%">
+                                            {{ category_results.low_selling.aggregated_metrics.smape.mean|floatformat:2 }}%
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">No data available</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- MASE Comparison -->
+                        <div class="col-md-4">
+                            <h6>MASE (Mean Absolute Scaled Error) - <1.0 is Better than Naive</h6>
+                            <div class="mb-3">
+                                <label>High-Selling Items:</label>
+                                {% if category_results.high_selling.aggregated_metrics.mase %}
+                                    <div class="d-flex align-items-center">
+                                        <span class=" {% if category_results.high_selling.aggregated_metrics.mase.mean < 1.0 %}text-success{% else %}text-warning{% endif %} me-2">
+                                            {{ category_results.high_selling.aggregated_metrics.mase.mean|floatformat:3 }}
+                                        </span>
+                                        {% if category_results.high_selling.aggregated_metrics.mase.mean < 1.0 %}
+                                            <small class="text-success">Better than naive forecast</small>
+                                        {% else %}
+                                            <small class="text-warning">Worse than naive forecast</small>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">No data available</p>
+                                {% endif %}
+                            </div>
+                            <div class="mb-3">
+                                <label>Low-Selling Items:</label>
+                                {% if category_results.low_selling.aggregated_metrics.mase %}
+                                    <div class="d-flex align-items-center">
+                                        <span class=" {% if category_results.low_selling.aggregated_metrics.mase.mean < 1.0 %}text-success{% else %}text-warning{% endif %} me-2">
+                                            {{ category_results.low_selling.aggregated_metrics.mase.mean|floatformat:3 }}
+                                        </span>
+                                        {% if category_results.low_selling.aggregated_metrics.mase.mean < 1.0 %}
+                                            <small class="text-success">Better than naive forecast</small>
+                                        {% else %}
+                                            <small class="text-warning">Worse than naive forecast</small>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">No data available</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- CRPS Comparison -->
+                        <div class="col-md-4">
+                            <h6>CRPS (Continuous Ranked Probability Score) - Lower is Better</h6>
+                            <div class="mb-3">
+                                <label>High-Selling Items:</label>
+                                {% if category_results.high_selling.aggregated_metrics.crps %}
+                                    <div class="alert alert-info p-2">
+                                        <strong>{{ category_results.high_selling.aggregated_metrics.crps.mean|floatformat:3 }}</strong>
+                                        <br><small>Std: ± {{ category_results.high_selling.aggregated_metrics.crps.std|floatformat:3 }}</small>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">No data available</p>
+                                {% endif %}
+                            </div>
+                            <div class="mb-3">
+                                <label>Low-Selling Items:</label>
+                                {% if category_results.low_selling.aggregated_metrics.crps %}
+                                    <div class="alert alert-success p-2">
+                                        <strong>{{ category_results.low_selling.aggregated_metrics.crps.mean|floatformat:3 }}</strong>
+                                        <br><small>Std: ± {{ category_results.low_selling.aggregated_metrics.crps.std|floatformat:3 }}</small>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">No data available</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Category Analysis -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>High-Selling Items Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>sMAPE</th>
+                                    <th>MASE</th>
+                                    <th>CRPS</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item_data in category_results.high_selling.items|slice:":10" %}
+                                <tr>
+                                    <td>{{ item_data.item.name|truncatechars:20 }}</td>
+                                    <td>
+                                        {% if item_data.metrics.advanced_metrics.smape %}
+                                            <span class="">{{ item_data.metrics.advanced_metrics.smape|floatformat:1 }}%</span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item_data.metrics.advanced_metrics.mase %}
+                                            <span class=" {% if item_data.metrics.advanced_metrics.mase < 1.0 %}text-success{% else %}text-warning{% endif %}">
+                                                {{ item_data.metrics.advanced_metrics.mase|floatformat:2 }}
+                                            </span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item_data.metrics.advanced_metrics.crps %}
+                                            {{ item_data.metrics.advanced_metrics.crps|floatformat:2 }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'enhanced-item-analytics' item_data.item.id %}" class="btn btn-sm btn-outline-primary">View Details</a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">No high-selling items with advanced metrics</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Low-Selling Items Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>sMAPE</th>
+                                    <th>MASE</th>
+                                    <th>CRPS</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item_data in category_results.low_selling.items|slice:":10" %}
+                                <tr>
+                                    <td>{{ item_data.item.name|truncatechars:20 }}</td>
+                                    <td>
+                                        {% if item_data.metrics.advanced_metrics.smape %}
+                                            <span class="">{{ item_data.metrics.advanced_metrics.smape|floatformat:1 }}%</span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item_data.metrics.advanced_metrics.mase %}
+                                            <span class=" {% if item_data.metrics.advanced_metrics.mase < 1.0 %}text-success{% else %}text-warning{% endif %}">
+                                                {{ item_data.metrics.advanced_metrics.mase|floatformat:2 }}
+                                            </span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item_data.metrics.advanced_metrics.crps %}
+                                            {{ item_data.metrics.advanced_metrics.crps|floatformat:2 }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'enhanced-item-analytics' item_data.item.id %}" class="btn btn-sm btn-outline-primary">View Details</a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">No low-selling items with advanced metrics</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prediction Intervals Analysis -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Prediction Intervals Performance</h5>
+                    <small class="text-muted">Coverage should be close to target confidence level</small>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for category_name, category_data in category_results.items %}
+                        <div class="col-md-6">
+                            <h6>{{ category_name|title }}</h6>
+                            {% if category_data.aggregated_metrics %}
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Confidence Level</th>
+                                                <th>Target Coverage</th>
+                                                <th>Actual Coverage</th>
+                                                <th>Performance</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- This would be populated if prediction intervals data is available -->
+                                            <tr>
+                                                <td>80%</td>
+                                                <td>80%</td>
+                                                <td>
+                                                    {% comment %}
+                                                    This would show actual coverage from your prediction intervals
+                                                    {% endcomment %}
+                                                    <span class="text-muted">Calculate from data</span>
+                                                </td>
+                                                <td>
+                                                    <span class=" text-info">Pending</span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <p class="text-muted">No prediction interval data available</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Research Insights -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Research Insights & Recommendations</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Key Findings:</h6>
+                            <ul class="list-unstyled">
+                                {% if category_results.high_selling.aggregated_metrics.smape and category_results.low_selling.aggregated_metrics.smape %}
+                                    {% if category_results.high_selling.aggregated_metrics.smape.mean < category_results.low_selling.aggregated_metrics.smape.mean %}
+                                        <li><i class="fas fa-check-circle text-success"></i> High-selling items show better forecasting accuracy (lower sMAPE)</li>
+                                    {% else %}
+                                        <li><i class="fas fa-info-circle text-info"></i> Low-selling items show better forecasting accuracy (lower sMAPE)</li>
+                                    {% endif %}
+                                {% endif %}
+                                
+                                {% if category_results.high_selling.aggregated_metrics.mase and category_results.low_selling.aggregated_metrics.mase %}
+                                    {% if category_results.high_selling.aggregated_metrics.mase.mean < 1.0 and category_results.low_selling.aggregated_metrics.mase.mean >= 1.0 %}
+                                        <li><i class="fas fa-chart-line text-success"></i> High-selling items outperform naive forecasting significantly</li>
+                                    {% elif category_results.low_selling.aggregated_metrics.mase.mean < 1.0 and category_results.high_selling.aggregated_metrics.mase.mean >= 1.0 %}
+                                        <li><i class="fas fa-chart-line text-success"></i> Low-selling items outperform naive forecasting significantly</li>
+                                    {% endif %}
+                                {% endif %}
+                                
+                                <li><i class="fas fa-database text-primary"></i> Total of {{ high_selling_count|add:low_selling_count }} items analyzed with advanced metrics</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Recommendations:</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-lightbulb text-warning"></i> Consider ensemble methods for items with high MASE values</li>
+                                <li><i class="fas fa-cog text-info"></i> Implement category-specific forecasting parameters</li>
+                                <li><i class="fas fa-chart-bar text-success"></i> Monitor prediction interval coverage for inventory optimization</li>
+                                <li><i class="fas fa-sync text-primary"></i> Regular model retraining based on performance metrics</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for Dynamic Updates -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add any JavaScript for dynamic metric updates
+    console.log('Enhanced Analytics Dashboard Loaded');
+    
+    // You can add AJAX calls here to update metrics in real-time
+    function updateMetrics() {
+        fetch('{% url "get-category-comparison-report" %}')
+            .then(response => response.json())
+            .then(data => {
+                // Update dashboard with fresh data
+                console.log('Updated metrics:', data);
+            })
+            .catch(error => console.error('Error updating metrics:', error));
+    }
+    
+    // Update every 5 minutes
+    setInterval(updateMetrics, 300000);
+});
+</script>
+{% endblock %}
+
+
